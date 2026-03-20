@@ -1,0 +1,17 @@
+# Core — required
+yfinance>=0.2.40
+requests>=2.31.0
+rich>=13.7.0
+
+# LLM backends — install at least one
+anthropic>=0.25.0          # for Claude (LLM_BACKEND=anthropic)
+openai>=1.30.0             # for any OpenAI-compatible endpoint (local, Groq, Together, OpenAI)
+
+# Polymarket CLOB — required for live trading
+py-clob-client>=0.17.0
+
+# News feed — optional (NLP still works without it, headlines will be empty)
+finnhub-python>=2.4.20
+
+# Testing
+pytest>=8.0.0
