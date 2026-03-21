@@ -132,6 +132,12 @@ def init_db() -> None:
             capital_usdc  REAL, total_pnl REAL,
             log_return    REAL, trades_count INTEGER, win_rate REAL
         );
+                           
+        CREATE TABLE IF NOT EXISTS bot_config (
+            key        TEXT PRIMARY KEY,
+            value      TEXT NOT NULL,
+            updated_at TEXT
+        );
 
         """)
 
@@ -391,3 +397,31 @@ def db_stats() -> dict:
             r[t] = conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
     r["size_kb"] = os.path.getsize(DB_FILE) / 1024 if os.path.exists(DB_FILE) else 0
     return r
+
+# ── Bot config (Telegram ownership) ───────────────────────────────────────
+
+def get_bot_config(key: str) -> Optional[str]:
+    """Lee un valor de bot_config. Devuelve None si no existe."""
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT value FROM bot_config WHERE key = ?", (key,)
+        ).fetchone()
+        return row["value"] if row else None
+
+
+def set_bot_config(key: str, value: str) -> None:
+    """Inserta o actualiza una entrada en bot_config."""
+    with _conn() as conn:
+        conn.execute("""
+            INSERT INTO bot_config (key, value, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(key) DO UPDATE SET
+                value      = excluded.value,
+                updated_at = excluded.updated_at
+        """, (key, value, datetime.now(ET).isoformat()))
+
+
+def del_bot_config(key: str) -> None:
+    """Elimina una entrada de bot_config."""
+    with _conn() as conn:
+        conn.execute("DELETE FROM bot_config WHERE key = ?", (key,))

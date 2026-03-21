@@ -2,6 +2,7 @@
 yfinance>=0.2.40
 requests>=2.31.0
 rich>=13.7.0
+python-telegram-bot>=21.0.0
 
 # LLM backends — install at least one
 anthropic>=0.25.0          # for Claude (LLM_BACKEND=anthropic)

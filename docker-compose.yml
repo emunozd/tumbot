@@ -11,6 +11,8 @@ services:
     environment:
       BOT_DB: /data/bot.db
       TZ: America/New_York
+      TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN}"
+      TELEGRAM_LINK_SECRET: "${TELEGRAM_LINK_SECRET}"
     volumes:
       - /var/lib/tumbot/data:/data
     networks:

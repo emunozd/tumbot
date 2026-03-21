@@ -19,6 +19,7 @@ from rich import box
 from src.config import WATCH_ASSETS, ET
 from src.trading.engine import in_entry_window
 from src.data import database as DB
+from src.signals.stats import edge_verdict
 
 console = Console()
 
@@ -315,6 +316,11 @@ def portfolio_panel(state: dict, live_mode: bool) -> Panel:
     g.add_row("Trades",        Text(str(total_count),      style="white"),
               "Win rate",      Text(f"{win_rate:.0f}%  ({winners}W / {losers}L)",
                                      style="green" if win_rate>=55 else "yellow"))
+
+    ci            = state.get("bootstrap_ci")
+    verdict_label, verdict_style = edge_verdict(ci)
+    g.add_row("Edge (95% CI)", Text(verdict_label, style=verdict_style),
+              "",              Text(""))
 
     tt = Table.grid(padding=(0,1))
     for _ in range(6): tt.add_column()
