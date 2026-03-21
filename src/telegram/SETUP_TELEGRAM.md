@@ -123,14 +123,9 @@ Does it match TELEGRAM_LINK_SECRET in .env?
 
 ---
 
-## For your friend (second instance)
+## Multiple instances
 
-Exactly the same steps, but:
-- They create **their own bot** with BotFather (different token)
-- Their own `TELEGRAM_LINK_SECRET` in their own `.env`
-- They run `/vincular` against their own bot on their own instance
-
-Each person is the exclusive owner of their own bot. The instances are completely independent.
+Each tumbot deployment is independent. Every instance needs its own bot token and its own `TELEGRAM_LINK_SECRET`. The setup steps above are identical for each deployment.
 
 ---
 
