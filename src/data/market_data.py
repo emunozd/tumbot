@@ -32,6 +32,24 @@ except ImportError:
 # ══════════════════════════════════════════════════════════════
 
 def _df_to_candles(df) -> List[dict]:
+    """
+    Convert a yfinance DataFrame to candle dicts.
+    Handles MultiIndex columns returned by yfinance >= 0.2.x:
+      ("Close", "BTC-USD") -> "Close"
+    """
+    import pandas as pd
+    if df is None or df.empty:
+        return []
+
+    # Flatten MultiIndex: ("Close", "BTC-USD") -> "Close"
+    if isinstance(df.columns, pd.MultiIndex):
+        df = df.copy()
+        df.columns = [col[0] for col in df.columns]
+
+    # yfinance may return "Adj Close" instead of "Close" depending on version
+    if "Adj Close" in df.columns and "Close" not in df.columns:
+        df = df.rename(columns={"Adj Close": "Close"})
+
     candles = []
     for ts, row in df.iterrows():
         try:
@@ -41,7 +59,7 @@ def _df_to_candles(df) -> List[dict]:
                 "h": float(row["High"]),
                 "l": float(row["Low"]),
                 "c": float(row["Close"]),
-                "v": float(row["Volume"]),
+                "v": float(row.get("Volume", 0) or 0),
             })
         except Exception:
             pass
