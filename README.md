@@ -247,21 +247,31 @@ Tests cover all pure-function modules (indicators, scoring, sizing) with no netw
 ### Quick start
 
 ```bash
-# 1. Clone and configure
+# 1. Create the data directory on the host
+# Docker mounts this path into the container for the SQLite database.
+# Must exist with write permissions before running docker compose.
+sudo mkdir -p /var/lib/tumbot/data
+sudo chmod 777 /var/lib/tumbot/data
+
+# 2. Clone and configure
 git clone https://github.com/your-username/tumbot.git
 cd tumbot
 cp .env.example .env
 # Fill in FRED_API_KEY and LLM credentials in .env
 
-# 2. Build and run
+# 3. Build and run
 docker compose up --build
 
-# 3. Run in background
+# 4. Run in background
 docker compose up --build -d
 
-# 4. View live logs
+# 5. View live logs
 docker logs -f tumbot
 ```
+
+> **Note:** The `/var/lib/tumbot/data` directory on the host persists the SQLite
+> database across container restarts and rebuilds. Only `docker compose down -v`
+> removes it.
 
 ### Useful commands
 
