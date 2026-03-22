@@ -414,10 +414,10 @@ async def cmd_signals(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> Non
         mhs_bar  = "█" * int(mhs // 10) + "░" * (10 - int(mhs // 10))
 
         block_txt = "  🚫 VIX block activo\n" if blocked else ""
-        opp_txt   = (
-            f"  ⚡ *SEÑAL ACTIVA* — Edge {_e(f'{opp.get(\"edge\", 0):+.3f}')}\n"
-            if opp else ""
-        )
+        opp_txt = ""
+        if opp:
+            edge_val = opp.get("edge", 0)
+            opp_txt  = f"  ⚡ *SEÑAL ACTIVA* — Edge {_e(f'{edge_val:+.3f}')}\n"
 
         lines.append(
             f"*{name}* \\({_e(asset)}\\)\n"
