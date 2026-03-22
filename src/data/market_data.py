@@ -8,7 +8,7 @@ Three providers, each in its own function:
   - Polymarket CLOB → current YES/NO prices for each watched market
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Tuple
 import requests
 import time

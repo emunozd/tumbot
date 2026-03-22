@@ -35,7 +35,7 @@ WATCH_ASSETS: Dict[str, dict] = {
         "resolution":       "daily",
         "asset_type":       "crypto",
     },
-    "SPX": {
+    "^GSPC": {
         "name":             "S&P 500",
         "poly_slug_prefix": "spx-up-or-down-on",
         "poly_slug":        "",
@@ -134,7 +134,7 @@ FRED_SERIES: Dict[str, str] = {
 DAILY_TITLE_PATTERNS: Dict[str, list] = {
     "BTC-USD": ["btc", "bitcoin"],
     "ETH-USD": ["eth", "ethereum"],
-    "SPX":     ["spx", "s&p", "s&p 500", "sp500"],
+    "^GSPC":   ["spx", "s&p", "s&p 500", "sp500"],
 }
 DAILY_KEYWORDS = [
     "up today", "go up today", "higher today", "up on",
