@@ -392,7 +392,17 @@ def discover_daily_markets(watch_assets: dict) -> Dict[str, dict]:
         market = None
 
         # Strategy 1 & 2: deterministic date-based slug
-        for dt in [now, tomorrow]:
+        # Resolution times differ by asset type:
+        #   crypto     → resolves at 12:00 PM ET (after that, use tomorrow)
+        #   equity_etf → resolves at  4:00 PM ET (after that, use tomorrow)
+        # Before the resolution cutoff: try today first, then tomorrow
+        # After  the resolution cutoff: try tomorrow first, then today
+        asset_type     = cfg.get("asset_type", "equity_etf")
+        cutoff_hour    = 12 if asset_type == "crypto" else 16
+        past_cutoff    = now.hour >= cutoff_hour
+        date_order     = [tomorrow, now] if past_cutoff else [now, tomorrow]
+
+        for dt in date_order:
             if market:
                 break
             if not prefix:
