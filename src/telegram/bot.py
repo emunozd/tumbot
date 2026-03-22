@@ -42,7 +42,7 @@ _MENU = ReplyKeyboardMarkup(
         [KeyboardButton("▶️ /resume"),    KeyboardButton("❓ /help")],
     ],
     resize_keyboard=True,
-    persistent=True,
+    is_persistent=True,
     input_field_placeholder="Elige un comando ↓",
 ) if HAS_TG else None
 
