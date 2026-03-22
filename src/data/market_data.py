@@ -365,7 +365,12 @@ def discover_daily_markets(watch_assets: dict) -> Dict[str, dict]:
                                  timeout=6)
                 data = r.json()
                 if data:
-                    market = data[0]
+                    candidate = data[0]
+                    # Verify the slug matches exactly — Gamma API can return
+                    # related markets if the slug doesn't exist
+                    returned_slug = candidate.get("slug", "")
+                    if returned_slug == slug:
+                        market = candidate
             except Exception:
                 pass
 
