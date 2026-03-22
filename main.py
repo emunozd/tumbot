@@ -34,7 +34,6 @@ from src.signals.indicators import expected_value, expected_log_return
 from src.trading.engine import detect_opportunity, open_position, monitor_position
 from src.models import PolyPosition, SentimentData, MacroData
 from src.ui.display import build_layout, console
-from src.telegram import bot as tg_bot
 
 try:
     import finnhub as _fh
@@ -259,6 +258,7 @@ def do_run_signals():
                 state["ev"][asset]            = ev_val
                 state["elr"][asset]           = elr_val
                 state["opportunities"][asset] = opp
+                state["last_signal"]          = datetime.now(ET).strftime("%H:%M:%S ET")
 
             # Monitor open position
             pos = state["positions"].get(asset)
@@ -274,21 +274,8 @@ def do_run_signals():
                         state["last_signal"] = datetime.now(ET).strftime("%H:%M:%S ET")
                     continue
 
-            # ── Telegram /close <asset> force-exit ───────────────────────
-            force_set = state.get("force_close", set())
-            if asset in force_set and pos and pos.status == "OPEN":
-                cur_clob = pp.get("yes") if pos.side == "YES" else pp.get("no")
-                monitor_position(
-                    asset, pos, cur_clob,
-                    0, -1.0,   # mhs=0 / dbs=-1 fuerza SIGNAL_REVERSED
-                    poly_client, state
-                )
-                with lock:
-                    state["force_close"].discard(asset)
-                continue
-
-            # Open new position (skip if Telegram /pause está activo)
-            if opp and asset not in state["positions"] and not tg_bot.is_paused():
+            # Open new position
+            if opp and asset not in state["positions"]:
                 opened = open_position(
                     asset, opp, state["capital_usdc"],
                     recent_trades, poly_client, state
@@ -296,13 +283,6 @@ def do_run_signals():
                 if opened:
                     with lock:
                         state["last_signal"] = datetime.now(ET).strftime("%H:%M:%S ET")
-                    pos = state["positions"].get(asset)
-                    if pos:
-                        tg_bot.alert_position_opened(
-                            asset, pos.side, pos.shares, pos.entry_price,
-                            pos.usdc_spent, pos.stop_loss, pos.take_profit,
-                            pos.entry_mhs, pos.entry_dbs, pos.entry_pip,
-                        )
 
         # ── Bootstrap CI — recompute only when trade count changes ─────────
         # 10K iterations take ~0.1s; skip if nothing new to avoid CPU waste
@@ -393,7 +373,6 @@ def startup():
 
     do_fetch_prices()
     do_run_signals()
-    tg_bot.init(state, lock)
 
 
 # ── Main loop ──────────────────────────────────────────────────────────────
