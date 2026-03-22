@@ -233,11 +233,17 @@ def fetch_macro() -> MacroData:
 
 def fetch_poly_price(token_yes: str, poly_client=None) -> Dict[str, Optional[float]]:
     """
-    Fetch YES/NO midpoint prices for a single market.
-    Uses the authenticated CLOB client if available, falls back to public REST.
+    Fetch YES/NO prices for a single market.
+
+    Endpoint: GET /price?token_id=<id>&side=BUY
+    Returns {"price": "0.4"} — the mid price for the YES token.
+    NO price = 1 - YES price (binary market invariant).
+
+    Falls back to authenticated CLOB client if available.
     """
     yes_price = None
 
+    # Authenticated CLOB client (live mode)
     if poly_client:
         try:
             mid_data  = poly_client.get_midpoint(token_yes)
@@ -245,16 +251,21 @@ def fetch_poly_price(token_yes: str, poly_client=None) -> Dict[str, Optional[flo
         except Exception:
             pass
 
+    # Public REST — average BUY and SELL to get midpoint
     if yes_price is None:
         try:
-            r = requests.get(
-                f"{POLY_HOST}/midpoints",
-                params={"token_ids": token_yes},
-                timeout=5,
-            )
-            data = r.json()
-            if isinstance(data, list) and data:
-                yes_price = float(data[0].get("mid", 0.5))
+            buy_r  = requests.get(f"{POLY_HOST}/price",
+                                   params={"token_id": token_yes, "side": "BUY"},
+                                   timeout=5)
+            sell_r = requests.get(f"{POLY_HOST}/price",
+                                   params={"token_id": token_yes, "side": "SELL"},
+                                   timeout=5)
+            buy_p  = float(buy_r.json().get("price", 0))
+            sell_p = float(sell_r.json().get("price", 0))
+            if buy_p > 0 and sell_p > 0:
+                yes_price = round((buy_p + sell_p) / 2, 3)
+            elif buy_p > 0:
+                yes_price = buy_p
         except Exception:
             pass
 
