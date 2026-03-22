@@ -89,7 +89,7 @@ def fetch_1h(ticker: str) -> None:
             return   # already up to date
         else:
             since = datetime.fromtimestamp(last_ts - one_hour)
-            df = yf.download(ticker, start=since.strftime("%Y-%m-%d %H:00"),
+            df = yf.download(ticker, start=since.strftime("%Y-%m-%d"),
                              interval="1h", auto_adjust=True,
                              progress=False, threads=False)
 
