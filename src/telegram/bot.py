@@ -37,7 +37,7 @@ from src.data import database as DB
 log = logging.getLogger("tumbot.telegram")
 
 try:
-    from telegram import Update
+    from telegram import Update, BotCommand, ReplyKeyboardMarkup, KeyboardButton
     from telegram.ext import (
         ApplicationBuilder, CommandHandler, ContextTypes, Application,
     )
@@ -56,6 +56,19 @@ _start_time: datetime                   = datetime.now(ET)
 
 # Pause flag — set = pausado, not set = corriendo
 _paused = threading.Event()
+
+# Menú persistente — aparece en la esquina inferior izquierda del chat
+_MENU_KEYBOARD = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton("📈 /signals"),   KeyboardButton("💼 /portfolio")],
+        [KeyboardButton("📊 /positions"), KeyboardButton("📋 /trades")],
+        [KeyboardButton("🤖 /status"),    KeyboardButton("⏸ /pause")],
+        [KeyboardButton("▶️ /resume"),    KeyboardButton("❓ /help")],
+    ],
+    resize_keyboard=True,       # botones compactos
+    persistent=True,            # siempre visible, no desaparece
+    input_field_placeholder="Escribe un comando o usa el menú ↓",
+) if HAS_TG else None
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -91,7 +104,7 @@ def _run_polling(token: str) -> None:
         handlers = [
             ("vincular",    cmd_vincular),
             ("desvincular", cmd_desvincular),
-            ("start",       cmd_help),
+            ("start",       cmd_start),
             ("help",        cmd_help),
             ("positions",   cmd_positions),
             ("portfolio",   cmd_portfolio),
@@ -104,6 +117,20 @@ def _run_polling(token: str) -> None:
         ]
         for name, fn in handlers:
             _app.add_handler(CommandHandler(name, fn))
+
+        # Registrar comandos en BotFather para el autocompletado de Telegram
+        await _app.bot.set_my_commands([
+            BotCommand("signals",     "Señales MHS · DBS · PIP por asset"),
+            BotCommand("portfolio",   "Capital, drawdown, win-rate"),
+            BotCommand("positions",   "Posiciones abiertas con SL · TP · PnL"),
+            BotCommand("trades",      "Últimos 10 trades cerrados"),
+            BotCommand("status",      "Estado del bot y uptime"),
+            BotCommand("pause",       "Suspende nuevas entradas"),
+            BotCommand("resume",      "Reactiva nuevas entradas"),
+            BotCommand("close",       "Cierra una posición: /close BTC-USD"),
+            BotCommand("help",        "Lista de comandos"),
+            BotCommand("desvincular", "Libera el ownership del bot"),
+        ])
 
         await _app.initialize()
         await _app.start()
@@ -134,7 +161,7 @@ def _is_owner(update: "Update") -> bool:
 
 def _require_auth(handler):
     """
-    Decorador para todos los comandos excepto /vincular y /desvincular.
+    Decorador para todos los comandos excepto /vincular, /desvincular y /start.
     Si el sender no es el dueño registrado → silencio absoluto.
     """
     @functools.wraps(handler)
@@ -191,6 +218,45 @@ def _poly_prices_snap() -> dict:
 
 
 # ══════════════════════════════════════════════════════════════════════════
+# /start — onboarding para nuevos usuarios
+# ══════════════════════════════════════════════════════════════════════════
+
+async def cmd_start(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> None:
+    """
+    /start — primer contacto con el bot.
+    Si ya hay dueño vinculado muestra el menú normal.
+    Si no hay dueño, explica cómo vincularse.
+    """
+    sender_id = str(update.effective_chat.id)
+    owner     = _get_owner()
+
+    if owner and owner == sender_id:
+        # Ya es el dueño — mostrar menú
+        await update.message.reply_text(
+            "👋 *tumbot activo\\.*\n\nUsa el menú inferior o escribe un comando\\.",
+            parse_mode=ParseMode.MARKDOWN_V2,
+            reply_markup=_MENU_KEYBOARD,
+        )
+        return
+
+    if owner and owner != sender_id:
+        # Hay dueño pero no es este usuario → silencio
+        return
+
+    # No hay dueño — instrucciones de vinculación
+    await update.message.reply_text(
+        "🤖 *Bienvenido a tumbot*\n\n"
+        "Este bot no tiene dueño aún\\.\n\n"
+        "Para reclamarlo, envía:\n\n"
+        "`/vincular <frase_secreta>`\n\n"
+        "La frase secreta es el valor de `TELEGRAM_LINK_SECRET` "
+        "en el archivo `\\.env` del servidor\\.\n\n"
+        "_Si no eres el administrador del servidor, este bot no es para ti\\._",
+        parse_mode=ParseMode.MARKDOWN_V2,
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════
 # /vincular y /desvincular  (sin @_require_auth — lógica propia)
 # ══════════════════════════════════════════════════════════════════════════
 
@@ -211,11 +277,12 @@ async def cmd_vincular(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> No
         log.warning(f"Intento de /vincular rechazado — chat_id={sender_id}")
         return
 
-    # Ya es el dueño → confirmar
+    # Ya es el dueño → confirmar y mostrar menú
     if owner and owner == sender_id:
         await update.message.reply_text(
             "✅ Ya estás vinculado como dueño de este bot\\.",
             parse_mode=ParseMode.MARKDOWN_V2,
+            reply_markup=_MENU_KEYBOARD,
         )
         return
 
@@ -231,44 +298,42 @@ async def cmd_vincular(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> No
     provided = " ".join(ctx.args).strip() if ctx.args else ""
 
     if provided != secret_env:
-        # Secreto incorrecto → silencio (no revelar que existe un secreto)
         log.warning(f"Secreto incorrecto en /vincular — chat_id={sender_id}")
         return
 
-    # Secreto correcto → registrar dueño en DB
+    # Secreto correcto → registrar dueño en DB y mostrar menú
     DB.set_bot_config("owner_chat_id", sender_id)
     log.info(f"Bot vinculado con chat_id={sender_id}")
 
     await update.message.reply_text(
         "🔐 *Bot vinculado correctamente\\.*\n\n"
         "Eres el único dueño de esta instancia\\.\n"
-        "Usa /help para ver los comandos disponibles\\.",
+        "El menú de comandos ya está disponible abajo 👇",
         parse_mode=ParseMode.MARKDOWN_V2,
+        reply_markup=_MENU_KEYBOARD,
     )
 
 
 async def cmd_desvincular(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> None:
     """
-    /desvincular
-
-    Solo el dueño actual puede desvincular.
-    Borra owner_chat_id de bot_config en la DB.
+    /desvincular — solo el dueño actual puede desvincular.
     """
     sender_id = str(update.effective_chat.id)
     owner     = _get_owner()
 
-    # No es el dueño → silencio
     if not owner or owner != sender_id:
         return
 
     DB.del_bot_config("owner_chat_id")
     log.info(f"Bot desvinculado — chat_id={sender_id}")
 
+    from telegram import ReplyKeyboardRemove
     await update.message.reply_text(
         "🔓 *Bot desvinculado\\.*\n\n"
         "Esta instancia ya no tiene dueño\\.\n"
         "Usa `/vincular <secreto>` para reclamarla de nuevo\\.",
         parse_mode=ParseMode.MARKDOWN_V2,
+        reply_markup=ReplyKeyboardRemove(),
     )
 
 
@@ -296,7 +361,11 @@ async def cmd_help(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> None:
         "  /status    — Estado del bot y uptime\n"
         "  /help      — Este mensaje\n"
     )
-    await update.message.reply_text(txt, parse_mode=ParseMode.MARKDOWN_V2)
+    await update.message.reply_text(
+        txt,
+        parse_mode=ParseMode.MARKDOWN_V2,
+        reply_markup=_MENU_KEYBOARD,
+    )
 
 
 @_require_auth
@@ -414,10 +483,11 @@ async def cmd_signals(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> Non
         mhs_bar  = "█" * int(mhs // 10) + "░" * (10 - int(mhs // 10))
 
         block_txt = "  🚫 VIX block activo\n" if blocked else ""
-        opp_txt = ""
         if opp:
             edge_val = opp.get("edge", 0)
             opp_txt  = f"  ⚡ *SEÑAL ACTIVA* — Edge {_e(f'{edge_val:+.3f}')}\n"
+        else:
+            opp_txt = ""
 
         lines.append(
             f"*{name}* \\({_e(asset)}\\)\n"
