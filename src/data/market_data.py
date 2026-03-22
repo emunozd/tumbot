@@ -266,15 +266,38 @@ def fetch_poly_price(token_yes: str, poly_client=None) -> Dict[str, Optional[flo
 
 
 def _extract_tokens(market: dict) -> Dict[str, str]:
-    tokens = market.get("clobTokenIds", [])
-    if len(tokens) >= 2:
-        return {"yes": tokens[0], "no": tokens[1]}
-    outcomes = market.get("outcomes", [])
-    if len(outcomes) >= 2:
-        yes = outcomes[0].get("clobTokenId", "")
-        no  = outcomes[1].get("clobTokenId", "")
-        if yes and no:
-            return {"yes": yes, "no": no}
+    import json as _json
+
+    raw = market.get("clobTokenIds", [])
+
+    # Gamma API returns clobTokenIds as a JSON-serialized string, not a list
+    # e.g. '["89995...", "10001..."]'  instead of  ["89995...", "10001..."]
+    if isinstance(raw, str):
+        try:
+            raw = _json.loads(raw)
+        except Exception:
+            raw = []
+
+    if isinstance(raw, list) and len(raw) >= 2:
+        return {"yes": str(raw[0]), "no": str(raw[1])}
+
+    # Fallback: outcomes array
+    outcomes_raw = market.get("outcomes", [])
+    if isinstance(outcomes_raw, str):
+        try:
+            outcomes_raw = _json.loads(outcomes_raw)
+        except Exception:
+            outcomes_raw = []
+
+    if isinstance(outcomes_raw, list) and len(outcomes_raw) >= 2:
+        try:
+            yes = outcomes_raw[0].get("clobTokenId", "")
+            no  = outcomes_raw[1].get("clobTokenId", "")
+            if yes and no:
+                return {"yes": yes, "no": no}
+        except Exception:
+            pass
+
     return {}
 
 
