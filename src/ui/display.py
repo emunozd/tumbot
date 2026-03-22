@@ -21,7 +21,7 @@ from src.trading.engine import in_entry_window
 from src.data import database as DB
 from src.signals.stats import edge_verdict
 
-console = Console()
+console = Console(width=220)  # fixed width — avoids truncation in docker logs
 
 
 # ── Color helpers ──────────────────────────────────────────────────────────
