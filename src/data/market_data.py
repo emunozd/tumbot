@@ -260,74 +260,124 @@ def _extract_tokens(market: dict) -> Dict[str, str]:
     return {}
 
 
-def _is_daily_market(m: dict) -> bool:
-    question = m.get("question", "").lower()
-    if any(kw in question for kw in DAILY_KEYWORDS):
-        return True
+# Price-movement verbs that indicate a daily Up/Down market
+_PRICE_VERBS = (
+    "go up", "go down", "price up", "price down",
+    "higher than", "lower than", "above", "below",
+    "close above", "close below", "end above", "end below",
+    "up today", "down today", "up on", "down on",
+)
+
+# Tags that disqualify a market even if it mentions the asset name.
+# Catches things like "MegaETH market cap", "ETH ETF", "ETH staking yield", etc.
+_DISQUALIFY = (
+    "market cap", "mcap", "fDV", "tvl", "etf",
+    "staking", "yield", "dominance", "supply",
+    "launch", "listing", "airdrop", "funding",
+    "fees", "revenue", "holders",
+)
+
+
+def _is_daily_price_market(m: dict, asset_keys: list) -> bool:
+    """
+    Returns True only if the market is a daily Up/Down price market
+    for the given asset.
+
+    Requires ALL of:
+      1. Question mentions the asset (btc / bitcoin / eth / ethereum / qqq)
+      2. Question contains a price-movement verb (go up, above, higher than…)
+      3. Question does NOT contain disqualifying terms (market cap, etf, etc.)
+      4. endDate is within the next 2 days (daily resolution)
+    """
+    q = m.get("question", "").lower()
+
+    # Must mention the asset
+    if not any(k in q for k in asset_keys):
+        return False
+
+    # Must contain a price-movement verb
+    if not any(v in q for v in _PRICE_VERBS):
+        return False
+
+    # Must NOT contain disqualifying terms
+    if any(d in q for d in _DISQUALIFY):
+        return False
+
+    # Must resolve within 2 days
     end_date = m.get("endDate", "") or m.get("end_date", "")
     if end_date:
         try:
             ed = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
-            if (ed - datetime.now(ed.tzinfo)).days <= 1:
-                return True
+            days_left = (ed - datetime.now(ed.tzinfo)).days
+            return days_left <= 2
         except Exception:
             pass
+
     return False
+
+
+def _make_daily_slug(prefix: str, dt: datetime) -> str:
+    """
+    Build the Polymarket event slug for a given date.
+    Pattern: {prefix}-{month}-{day}-{year}
+    Example: bitcoin-up-or-down-on-march-23-2026
+    """
+    month = dt.strftime("%B").lower()   # "march"  (no leading zero)
+    day   = str(dt.day)                 # "23"     (no leading zero)
+    year  = str(dt.year)                # "2026"
+    return f"{prefix}-{month}-{day}-{year}"
 
 
 def discover_daily_markets(watch_assets: dict) -> Dict[str, dict]:
     """
     Discover today's active daily markets for each watched asset.
-    Tries three strategies in order:
-      1. Direct slug lookup
-      2. Tag filter + title matching
-      3. Date filter (end_date = today)
+
+    Strategy cascade — stops as soon as a valid market is found:
+      1. Date-based slug for TODAY   (deterministic, most reliable)
+         e.g. bitcoin-up-or-down-on-march-23-2026
+      2. Date-based slug for TOMORROW (markets sometimes open a day early)
+      3. Keyword + price-verb filter over all active markets (fallback)
 
     Updates watch_assets in-place and persists token IDs to the DB.
     Returns a dict of {ticker: market_info} for found markets.
     """
     found: Dict[str, dict] = {}
-    today = datetime.now(ET).strftime("%Y-%m-%d")
+    now      = datetime.now(ET)
+    tomorrow = now + timedelta(days=1)
 
     for ticker, cfg in watch_assets.items():
-        keys     = DAILY_TITLE_PATTERNS.get(ticker, [ticker.replace("-USD","").lower()])
-        market   = None
+        prefix = cfg.get("poly_slug_prefix", "")
+        keys   = DAILY_TITLE_PATTERNS.get(ticker, [ticker.replace("-USD","").lower()])
+        market = None
 
-        # Strategy 1: direct slug
-        try:
-            r = requests.get(f"{GAMMA_API}/markets",
-                             params={"slug": cfg["poly_slug"], "active": True},
-                             timeout=6)
-            data = r.json()
-            if data:
-                market = data[0]
-        except Exception:
-            pass
-
-        # Strategy 2: tag + title
-        if not market:
+        # Strategy 1 & 2: deterministic date-based slug
+        for dt in [now, tomorrow]:
+            if market:
+                break
+            if not prefix:
+                break
+            slug = _make_daily_slug(prefix, dt)
+            # Update config so logs show the attempted slug
+            watch_assets[ticker]["poly_slug"] = slug
             try:
                 r = requests.get(f"{GAMMA_API}/markets",
-                                 params={"active": True, "closed": False, "limit": 100},
-                                 timeout=8)
-                for m in r.json():
-                    q = m.get("question", "").lower()
-                    if any(k in q for k in keys) and _is_daily_market(m):
-                        market = m
-                        break
+                                 params={"slug": slug},
+                                 timeout=6)
+                data = r.json()
+                if data:
+                    market = data[0]
             except Exception:
                 pass
 
-        # Strategy 3: end date filter
+        # Strategy 3: keyword + price-verb filter over active markets
         if not market:
             try:
                 r = requests.get(f"{GAMMA_API}/markets",
                                  params={"active": True, "closed": False,
-                                         "end_date_min": today,
-                                         "end_date_max": today, "limit": 50},
+                                         "limit": 200},
                                  timeout=8)
                 for m in r.json():
-                    if any(k in m.get("question","").lower() for k in keys):
+                    if _is_daily_price_market(m, keys):
                         market = m
                         break
             except Exception:
@@ -344,7 +394,6 @@ def discover_daily_markets(watch_assets: dict) -> Dict[str, dict]:
                     "condition_id": market.get("conditionId", ""),
                 }
                 found[ticker] = info
-                # Persist to DB and update in-memory config
                 watch_assets[ticker]["token_yes"] = tokens["yes"]
                 watch_assets[ticker]["token_no"]  = tokens["no"]
                 DB.update_asset_tokens(

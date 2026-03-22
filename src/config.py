@@ -18,28 +18,31 @@ UTC = ZoneInfo("UTC")
 # token_yes / token_no are discovered automatically at startup via Gamma API.
 WATCH_ASSETS: Dict[str, dict] = {
     "BTC-USD": {
-        "name":        "Bitcoin",
-        "poly_slug":   "will-btc-price-go-up-today",
-        "token_yes":   "",
-        "token_no":    "",
-        "resolution":  "daily",
-        "asset_type":  "crypto",   # crypto | equity_etf
+        "name":             "Bitcoin",
+        "poly_slug_prefix": "bitcoin-up-or-down-on",   # slug = prefix-month-day-year
+        "poly_slug":        "",                         # built dynamically at runtime
+        "token_yes":        "",
+        "token_no":         "",
+        "resolution":       "daily",
+        "asset_type":       "crypto",   # crypto | equity_etf
     },
     "ETH-USD": {
-        "name":        "Ethereum",
-        "poly_slug":   "will-eth-price-go-up-today",
-        "token_yes":   "",
-        "token_no":    "",
-        "resolution":  "daily",
-        "asset_type":  "crypto",
+        "name":             "Ethereum",
+        "poly_slug_prefix": "ethereum-up-or-down-on",
+        "poly_slug":        "",
+        "token_yes":        "",
+        "token_no":         "",
+        "resolution":       "daily",
+        "asset_type":       "crypto",
     },
-    "QQQ": {
-        "name":        "Nasdaq 100",
-        "poly_slug":   "will-qqq-go-up-today",
-        "token_yes":   "",
-        "token_no":    "",
-        "resolution":  "daily",
-        "asset_type":  "equity_etf",
+    "SPX": {
+        "name":             "S&P 500",
+        "poly_slug_prefix": "spx-up-or-down-on",
+        "poly_slug":        "",
+        "token_yes":        "",
+        "token_no":         "",
+        "resolution":       "daily",
+        "asset_type":       "equity_etf",
     },
 }
 
@@ -131,7 +134,7 @@ FRED_SERIES: Dict[str, str] = {
 DAILY_TITLE_PATTERNS: Dict[str, list] = {
     "BTC-USD": ["btc", "bitcoin"],
     "ETH-USD": ["eth", "ethereum"],
-    "QQQ":     ["qqq", "nasdaq"],
+    "SPX":     ["spx", "s&p", "s&p 500", "sp500"],
 }
 DAILY_KEYWORDS = [
     "up today", "go up today", "higher today", "up on",
