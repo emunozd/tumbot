@@ -12,9 +12,17 @@ All actual logic lives in the src/* modules.
 
 import sys
 import time
+import logging
 import threading
 from datetime import datetime
 from dataclasses import fields as dc_fields
+
+logging.basicConfig(
+    level=logging.WARNING,
+    format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+    datefmt="%H:%M:%S",
+)
+logging.getLogger("tumbot.telegram").setLevel(logging.DEBUG)
 
 from src.config import (
     WATCH_ASSETS, FRED_KEY, POLY_PK, POLY_FUNDER, CAPITAL_INITIAL,

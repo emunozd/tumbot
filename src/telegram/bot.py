@@ -101,7 +101,12 @@ def _run_polling(token: str) -> None:
         while True:
             await asyncio.sleep(3600)
 
-    asyncio.run(_main())
+    try:
+        asyncio.run(_main())
+    except Exception as exc:
+        log.error(f"Telegram polling crashed: {exc}", exc_info=True)
+        import traceback
+        traceback.print_exc()
 
 
 def _get_owner() -> Optional[str]:
