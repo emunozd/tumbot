@@ -360,7 +360,7 @@ def status_bar(state: dict) -> Text:
     except Exception:
         db_info = ""
     return Text(
-        f"  Data:{upd}  Signal:{sig}  •  next in {cd}s{db_info}  •  Ctrl+C to quit",
+        f"  Data:{upd}  Signal:{sig}  •  next in {cd}s{db_info}  •  Ctrl+P Ctrl+Q to detach",
         style="dim",
     )
 
