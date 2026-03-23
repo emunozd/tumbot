@@ -29,9 +29,15 @@ from src.data import database as DB
 
 def in_entry_window(asset: str) -> bool:
     """
-    Entry window is asset-type-aware:
-      crypto     → always open (24/7 markets)
-      equity_etf → NYSE hours only (Mon–Fri, 9:30–13:30 ET)
+    All assets are always open if there is candle data available.
+
+    Polymarket daily markets run 24/7 — equity ETF markets open at 16:01 ET
+    the day before resolution and close at 16:00 ET on resolution day.
+    There is no reason to block entry by time — if there is edge, we trade.
+    Signal quality naturally drops outside NYSE hours (no fresh 1H candles)
+    which lowers MHS organically. No artificial time gate needed.
+
+    Only returns False if there is zero candle data (first run, no history yet).
     """
     cfg        = WATCH_ASSETS.get(asset, {})
     asset_type = cfg.get("asset_type", "equity_etf")
@@ -39,14 +45,10 @@ def in_entry_window(asset: str) -> bool:
     if asset_type == "crypto":
         return True
 
-    now = datetime.now(ET)
-    if now.weekday() >= 5:
-        return False
-    ws = now.replace(hour=ENTRY_WINDOW_START[0], minute=ENTRY_WINDOW_START[1],
-                     second=0, microsecond=0)
-    we = now.replace(hour=ENTRY_WINDOW_END[0],   minute=ENTRY_WINDOW_END[1],
-                     second=0, microsecond=0)
-    return ws <= now <= we
+    # Equity: open as long as we have candle data to base signals on
+    from src.data import database as DB
+    last_ts = DB.get_last_1d_ts(asset)
+    return bool(last_ts and last_ts > 0)
 
 
 # ── Opportunity detection ──────────────────────────────────────────────────

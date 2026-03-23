@@ -21,7 +21,7 @@ from src.trading.engine import in_entry_window
 from src.data import database as DB
 from src.signals.stats import edge_verdict
 
-console = Console()  # auto-detect terminal width
+console = Console(width=200)  # fixed width for PuTTY compatibility
 
 
 # ── Color helpers ──────────────────────────────────────────────────────────
@@ -230,7 +230,7 @@ def macro_panel(state: dict) -> Panel:
     win_txt = Text()
     for ast, cfg in WATCH_ASSETS.items():
         is_open = in_entry_window(ast)
-        label   = "24/7" if cfg.get("asset_type") == "crypto" else "9:30–13:30 ET"
+        label   = "24/7" if cfg.get("asset_type") == "crypto" else "16:01–16:00 ET next day"
         win_txt.append(f"{'●' if is_open else '○'} {ast} ({label})  ",
                         style="bold green" if is_open else "dim")
 
