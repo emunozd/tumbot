@@ -437,6 +437,17 @@ def main():
             if now.minute != _last_sig_min:
                 _last_sig_min = now.minute
                 bg(do_run_signals)
+                with lock:
+                    opps = [a for a, o in state["opportunities"].items() if o]
+                    n_pos = len(state["positions"])
+                    if opps:
+                        state["status"] = f"🔍 Edge detectado: {', '.join(opps)}"
+                    elif n_pos:
+                        state["status"] = f"📊 Monitoreando {n_pos} posición(es)"
+                    else:
+                        mhs_vals = [v.get('score',0) for v in state['mhs'].values() if isinstance(v, dict)]
+                        avg_mhs = sum(mhs_vals)/len(mhs_vals) if mhs_vals else 0
+                        state["status"] = f"👁 Escaneando — MHS avg {avg_mhs:.0f}/100"
 
             # ── Market refresh: hourly at HH:03, fast near resolution ──
             # Normal cadence: every hour at HH:03.
