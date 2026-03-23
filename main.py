@@ -42,6 +42,7 @@ from src.signals.indicators import expected_value, expected_log_return
 from src.trading.engine import detect_opportunity, open_position, monitor_position
 from src.models import PolyPosition, SentimentData, MacroData
 from src.ui.display import build_layout, console
+from src.telegram import bot as tg_bot
 
 try:
     import finnhub as _fh
@@ -387,6 +388,7 @@ def startup():
 
 def main():
     startup()
+    tg_bot.init(state, lock)
 
     # Clock-based trigger flags
     _last_1h_hour  = -1
