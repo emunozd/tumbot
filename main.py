@@ -438,17 +438,44 @@ def main():
                 _last_sig_min = now.minute
                 bg(do_run_signals)
 
-            # ── Market refresh + daily snapshot: at HH:03 ────────────
-            if now.minute == 3 and now.hour != _last_market_h:
-                _last_market_h = now.hour
-                def _hourly():
+            # ── Market refresh: hourly at HH:03, fast near resolution ──
+            # Normal cadence: every hour at HH:03.
+            # Fast cadence: every 5 min in window [resolution-5min, resolution+60min]
+            # so the bot switches to the next day's market as soon as it's live.
+            def _in_resolution_window(now_dt) -> bool:
+                """True if any watched asset is within its resolution window."""
+                for cfg in WATCH_ASSETS.values():
+                    rh = cfg.get("resolves_hour", -1)
+                    rm = cfg.get("resolves_minute", 0)
+                    res = now_dt.replace(hour=rh, minute=rm, second=0, microsecond=0)
+                    diff = (now_dt - res).total_seconds()
+                    if -300 <= diff <= 3600:   # 5 min before → 60 min after
+                        return True
+                return False
+
+            in_res_window = _in_resolution_window(now)
+
+            run_discovery = False
+            if in_res_window:
+                # Fast mode: every 5 minutes
+                if now.minute % 5 == 0 and now.minute != _last_market_h:
+                    _last_market_h = now.minute
+                    run_discovery  = True
+            else:
+                # Normal mode: once per hour at HH:03
+                if now.minute == 3 and now.hour != _last_market_h:
+                    _last_market_h = now.hour
+                    run_discovery  = True
+
+            if run_discovery:
+                def _do_discovery():
                     discover_daily_markets(WATCH_ASSETS)
                     if now.hour == 16:
                         today    = now.strftime("%Y-%m-%d")
                         recent   = DB.load_recent_trades(limit=100)
                         today_ts = [t for t in recent if t["time"][:10] == today]
                         DB.save_daily_snapshot(state["capital_usdc"], today_ts)
-                bg(_hourly)
+                bg(_do_discovery)
 
 
 if __name__ == "__main__":

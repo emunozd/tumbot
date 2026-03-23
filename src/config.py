@@ -25,6 +25,8 @@ WATCH_ASSETS: Dict[str, dict] = {
         "token_no":         "",
         "resolution":       "daily",
         "asset_type":       "crypto",   # crypto | equity_etf
+        "resolves_hour":    12,          # 12:00 PM ET — Polymarket resolution time
+        "resolves_minute":  0,
     },
     "ETH-USD": {
         "name":             "Ethereum",
@@ -34,6 +36,8 @@ WATCH_ASSETS: Dict[str, dict] = {
         "token_no":         "",
         "resolution":       "daily",
         "asset_type":       "crypto",
+        "resolves_hour":    12,          # 12:00 PM ET
+        "resolves_minute":  0,
     },
     "^GSPC": {
         "name":             "S&P 500",
@@ -43,6 +47,8 @@ WATCH_ASSETS: Dict[str, dict] = {
         "token_no":         "",
         "resolution":       "daily",
         "asset_type":       "equity_etf",
+        "resolves_hour":    16,          # 4:00 PM ET — NYSE close
+        "resolves_minute":  0,
     },
 }
 
