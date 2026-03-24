@@ -65,26 +65,53 @@ def technical_subscore(candles_1h: list) -> float:
 
 
 def sentiment_subscore(sent: SentimentData) -> float:
-    """Score 0–100 from NLP sentiment output."""
-    nlp_norm  = ((sent.score + 1) / 2) * 100
-    fg_val    = sent.fear_greed
-    conf_mult = {"high": 1.0, "medium": 0.8, "low": 0.6}.get(sent.confidence, 0.7)
-    raw = nlp_norm * 0.40 + fg_val * 0.60
-    return round(50.0 + (raw - 50.0) * conf_mult, 1)
+    """
+    Score 0–100 from NLP sentiment output.
+
+    Neutral sentiment (score=0, F&G=50) maps to 62 instead of 50.
+    Rationale: absence of negative sentiment is itself a mild positive signal.
+    A score of 50 implies "actively neutral" — the market has no fear or greed.
+    In prediction markets that opens edge opportunities.
+
+    Scale:
+      Very negative (score=-1, F&G=0)  → ~20
+      Neutral       (score=0,  F&G=50) → ~62
+      Very positive (score=+1, F&G=100)→ ~95
+    """
+    nlp_norm  = ((sent.score + 1) / 2) * 100   # 0–100, neutral=50
+    fg_val    = sent.fear_greed                  # 0–100, neutral=50
+    conf_mult = {"high": 1.0, "medium": 0.85, "low": 0.70}.get(sent.confidence, 0.75)
+
+    # Blend NLP and F&G
+    raw = nlp_norm * 0.40 + fg_val * 0.60       # neutral raw = 50
+
+    # Shift baseline: neutral (raw=50) maps to 62, not 50
+    # This reflects that "no bad news" is mildly positive for Polymarket edge
+    shifted = 62.0 + (raw - 50.0) * 1.2
+
+    # Apply confidence multiplier around the new baseline
+    score = 62.0 + (shifted - 62.0) * conf_mult
+    return round(max(0.0, min(100.0, score)), 1)
 
 
 def macro_subscore(macro: MacroData) -> float:
-    """Score 0–100 from FRED macro indicators."""
-    s = 55.0
+    """
+    Score 0–100 from FRED macro indicators.
+
+    Baseline raised to 62 (same logic as sentiment — neutral macro is mildly positive).
+    VIX penalties reduced: elevated VIX is normal in crypto markets and should not
+    destroy the score. VIX 26 in a crypto context is "concern" but not catastrophic.
+    """
+    s = 62.0
 
     vix = macro.vix
     if vix:
         if   vix < 13: s += 15
         elif vix < 18: s += 8
         elif vix < 22: s += 0
-        elif vix < 25: s -= 8
-        elif vix < 30: s -= 18
-        else:          s -= 35
+        elif vix < 25: s -= 5
+        elif vix < 30: s -= 10
+        else:          s -= 20
 
     sp = macro.spread
     if sp is not None:
