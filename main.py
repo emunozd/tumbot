@@ -352,6 +352,16 @@ def startup():
     for ticker, cfg in WATCH_ASSETS.items():
         DB.upsert_asset(ticker, cfg["name"], cfg["asset_type"], cfg["poly_slug"])
 
+    # Restore known tokens from DB into WATCH_ASSETS in-memory dict.
+    # Without this, do_fetch_prices() skips assets whose token_yes is ""
+    # even when a valid token was discovered and persisted in a prior session.
+    for ticker in WATCH_ASSETS:
+        row = DB.get_asset(ticker)
+        if row.get("token_yes"):
+            WATCH_ASSETS[ticker]["token_yes"] = row["token_yes"]
+            WATCH_ASSETS[ticker]["token_no"]  = row.get("token_no", "")
+            console.print(f"[dim]  {ticker}: token restaurado de DB[/]")
+
     # Recover state from previous session
     portfolio = DB.load_portfolio()
     if portfolio:
