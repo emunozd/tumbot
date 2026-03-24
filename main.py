@@ -480,12 +480,57 @@ def main():
 
             if run_discovery:
                 def _do_discovery():
-                    discover_daily_markets(WATCH_ASSETS)
+                    from src.trading.engine import close_position
+                    import src.telegram.bot as _tg
+
+                    # Snapshot token_ids before discovery
+                    old_tokens = {
+                        a: WATCH_ASSETS[a].get("token_yes", "")
+                        for a in WATCH_ASSETS
+                    }
+
+                    found = discover_daily_markets(WATCH_ASSETS)
+
+                    # Detect market switch — close orphaned positions
+                    for asset in WATCH_ASSETS:
+                        new_token = WATCH_ASSETS[asset].get("token_yes", "")
+                        if not new_token or new_token == old_tokens[asset]:
+                            continue  # no change
+
+                        with lock:
+                            pos = state["positions"].get(asset)
+
+                        if pos:
+                            # Market switched — position is orphaned
+                            # Use last known price or fall back to entry price
+                            last_p = state["poly_prices"].get(asset, {})
+                            exit_p = (
+                                last_p.get("yes") if pos.side == "YES"
+                                else last_p.get("no")
+                            ) or pos.entry_price
+
+                            with lock:
+                                trade = close_position(
+                                    asset, pos, "MARKET_EXPIRED",
+                                    exit_p, poly_client, state
+                                )
+                            console.print(
+                                f"[yellow]⚠ {asset}: mercado expiró con posición abierta "
+                                f"→ cerrada como MARKET_EXPIRED "
+                                f"PnL=${trade.pnl:+.2f}[/]"
+                            )
+                            _tg.alert_position_closed(
+                                asset, pos.side, "MARKET_EXPIRED",
+                                trade.pnl, trade.pnl_pct,
+                                pos.entry_price, exit_p,
+                            )
+
                     if now.hour == 16:
                         today    = now.strftime("%Y-%m-%d")
                         recent   = DB.load_recent_trades(limit=100)
                         today_ts = [t for t in recent if t["time"][:10] == today]
                         DB.save_daily_snapshot(state["capital_usdc"], today_ts)
+
                 bg(_do_discovery)
 
 
