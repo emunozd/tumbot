@@ -367,10 +367,11 @@ async def cmd_signals(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> Non
             opp_edge = opp.get("edge", 0)
             opp_txt = f"\n  \u26a1 *SE\u00d1AL ACTIVA* \u2014 Edge {_e(f'{opp_edge:+.3f}')}"
         block_txt = "\n  \U0001f6ab VIX block activo" if blocked else ""
+        t_s_e = _e(t_s)
         lines.append(
             f"*{name}* \\({_e(asset)}\\)  {price_txt}\n"
-            f"  MHS: {mhs:.0f}/100 \\[{mhs_bar}\\]  \\({t_s}\\)\n"
-            f"  DBS: {_e(f'{dbs:+.2f}')} {dir_icon} {dir_lbl}  Votes: {votes}/4\n"
+            f"  MHS: {mhs:.0f}/100 \\[{mhs_bar}\\]  \\({t_s_e}\\)\n"
+            f"  DBS: {_e(f'{dbs:+.2f}')} {dir_icon} {_e(dir_lbl)}  Votes: {votes}/4\n"
             f"  PIP: {_e(f'{pip:.3f}')}{pip_note}   Trend: {_e(str(tf))}\n"
             f"  YES: {yes_txt}   NO: {no_txt}\n"
             f"  Edge: {edge_txt} {edge_icon}\n"
