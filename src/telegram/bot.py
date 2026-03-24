@@ -33,7 +33,6 @@ _app:        Optional[object]         = None
 _start_time: datetime                 = datetime.now(ET)
 _paused      = threading.Event()
 
-_MENU = None  # keyboard removed — use Menu button in chat bar instead
 
 
 def init(state: dict, lock: threading.Lock) -> None:
@@ -149,7 +148,7 @@ async def cmd_start(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> None:
         await update.message.reply_text(
             "👋 *tumbot activo\\.*\n\nUsa el menú inferior o escribe un comando\\.",
             parse_mode=ParseMode.MARKDOWN_V2,
-            reply_markup=_MENU,
+            reply_markup=ReplyKeyboardRemove(),
         )
         return
     if owner and owner != sender_id:
@@ -173,7 +172,7 @@ async def cmd_vincular(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> No
         await update.message.reply_text(
             "✅ Ya estás vinculado como dueño de este bot\\.",
             parse_mode=ParseMode.MARKDOWN_V2,
-            reply_markup=_MENU,
+            reply_markup=ReplyKeyboardRemove(),
         )
         return
     secret_env = os.environ.get("TELEGRAM_LINK_SECRET", "").strip()
@@ -194,7 +193,7 @@ async def cmd_vincular(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> No
         "Eres el único dueño de esta instancia\\.\n"
         "El menú de comandos ya está disponible abajo 👇",
         parse_mode=ParseMode.MARKDOWN_V2,
-        reply_markup=_MENU,
+        reply_markup=ReplyKeyboardRemove(),
     )
 
 
@@ -230,7 +229,7 @@ async def cmd_help(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> None:
         "*Info*\n"
         "  /status    — Estado del bot y uptime\n"
     )
-    await update.message.reply_text(txt, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=_MENU)
+    await update.message.reply_text(txt, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=ReplyKeyboardRemove())
 
 
 @_require_auth
