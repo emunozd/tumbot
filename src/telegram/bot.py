@@ -313,10 +313,11 @@ async def cmd_portfolio(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> N
 
 @_require_auth
 async def cmd_signals(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> None:
-    """Full signal dashboard."""
+    """Full signal dashboard using HTML parse mode — avoids MarkdownV2 escaping issues."""
     if _state is None:
-        await update.message.reply_text("\u26a0\ufe0f Estado no disponible\\.", parse_mode=ParseMode.MARKDOWN_V2)
+        await update.message.reply_text("⚠️ Estado no disponible.", parse_mode=ParseMode.HTML)
         return
+
     with _lock:
         mhs_map   = dict(_state.get("mhs", {}))
         dbs_map   = dict(_state.get("dbs", {}))
@@ -328,8 +329,10 @@ async def cmd_signals(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> Non
         tf_map    = dict(_state.get("tf_trend", {}))
         macro     = _state.get("macro_data")
         sent      = _state.get("sentiment_data")
-    pause_note = "\u23f8 *Motor PAUSADO*\n\n" if _paused.is_set() else ""
-    lines = [f"\U0001f52d *Dashboard de Se\u00f1ales*\n\n{pause_note}"]
+
+    pause_note = "⏸ <b>Motor PAUSADO</b>\n\n" if _paused.is_set() else ""
+    lines = [f"🔭 <b>Dashboard de Señales</b>\n\n{pause_note}"]
+
     for asset in WATCH_ASSETS:
         mhs_d   = mhs_map.get(asset, {})
         dbs_d   = dbs_map.get(asset, {})
@@ -340,63 +343,64 @@ async def cmd_signals(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> Non
         pip     = pip_map.get(asset) or 0.0
         pip_adj = pip_v.get("adjusted_pip", pip) if pip_v else pip
         opp     = opps.get(asset)
-        name    = _e(WATCH_ASSETS[asset].get("name", asset))
+        name    = WATCH_ASSETS[asset].get("name", asset)
         price   = lp.get(asset)
         yes_p   = pp.get("yes")
         no_p    = pp.get("no")
-        tf      = tf_map.get(asset, "\u2014")
+        tf      = tf_map.get(asset, "—")
         blocked = mhs_d.get("blocked", False) if isinstance(mhs_d, dict) else False
         bdown   = mhs_d.get("breakdown", {}) if isinstance(mhs_d, dict) else {}
         dir_lbl = dbs_d.get("direction", "NEUTRAL") if isinstance(dbs_d, dict) else "NEUTRAL"
         votes   = dbs_d.get("votes", 0) if isinstance(dbs_d, dict) else 0
-        dir_icon = {"LONG": "\U0001f7e2", "SHORT": "\U0001f534", "NEUTRAL": "\u26aa"}.get(dir_lbl, "\u26aa")
-        mhs_bar  = "\u2588" * int(mhs // 10) + "\u2591" * (10 - int(mhs // 10))
-        price_txt = f"${_e(f'{price:,.2f}')}" if price else "\u2014"
-        t_s = f"T:{bdown.get('tech',0):.0f} S:{bdown.get('sent',0):.0f} M:{bdown.get('macro',0):.0f}"
-        yes_txt = _e(f"{yes_p:.3f}") if yes_p else "\u2014"
-        no_txt  = _e(f"{no_p:.3f}") if no_p else "\u2014"
+        dir_icon = {"LONG": "🟢", "SHORT": "🔴", "NEUTRAL": "⚪"}.get(dir_lbl, "⚪")
+        mhs_bar  = "█" * int(mhs // 10) + "░" * (10 - int(mhs // 10))
+
+        price_txt = f"${price:,.2f}" if price else "—"
+        t_s       = f"T:{bdown.get('tech',0):.0f} S:{bdown.get('sent',0):.0f} M:{bdown.get('macro',0):.0f}"
+        yes_txt   = f"{yes_p:.3f}" if yes_p else "—"
+        no_txt    = f"{no_p:.3f}"  if no_p  else "—"
+
         side_price = yes_p if dir_lbl == "LONG" else no_p
-        edge = round(pip_adj - side_price, 3) if side_price else None
-        edge_txt  = _e(f"{edge:+.3f}") if edge is not None else "\u2014"
-        edge_icon = "\u2705" if (edge and edge >= 0.08) else ("\u26a0\ufe0f" if (edge and edge > 0) else "\u274c")
-        pip_note = ""
-        if pip_v and pip_v.get("valid"):
-            pip_note = f" \u2192 adj {_e(f'{pip_adj:.3f}')}"
-        opp_txt = ""
-        if opp:
-            opp_edge = opp.get("edge", 0)
-            opp_txt = f"\n  \u26a1 *SE\u00d1AL ACTIVA* \u2014 Edge {_e(f'{opp_edge:+.3f}')}"
-        block_txt = "\n  \U0001f6ab VIX block activo" if blocked else ""
-        t_s_e = _e(t_s)
+        edge       = round(pip_adj - side_price, 3) if side_price else None
+        edge_txt   = f"{edge:+.3f}" if edge is not None else "—"
+        edge_icon  = "✅" if (edge and edge >= 0.08) else ("⚠️" if (edge and edge > 0) else "❌")
+
+        pip_note = f" → adj {pip_adj:.3f}" if (pip_v and pip_v.get("valid")) else ""
+        opp_txt  = f"\n  ⚡ <b>SEÑAL ACTIVA</b> — Edge {opp.get('edge',0):+.3f}" if opp else ""
+        block_txt = "\n  🚫 VIX block activo" if blocked else ""
+
         lines.append(
-            f"*{name}* \\({_e(asset)}\\)  {price_txt}\n"
-            f"  MHS: {mhs:.0f}/100 \\[{mhs_bar}\\]  \\({t_s_e}\\)\n"
-            f"  DBS: {_e(f'{dbs:+.2f}')} {dir_icon} {_e(dir_lbl)}  Votes: {votes}/4\n"
-            f"  PIP: {_e(f'{pip:.3f}')}{pip_note}   Trend: {_e(str(tf))}\n"
+            f"<b>{name}</b> ({asset})  {price_txt}\n"
+            f"  MHS: {mhs:.0f}/100 [{mhs_bar}]  ({t_s})\n"
+            f"  DBS: {dbs:+.2f} {dir_icon} {dir_lbl}  Votes: {votes}/4\n"
+            f"  PIP: {pip:.3f}{pip_note}   Trend: {tf}\n"
             f"  YES: {yes_txt}   NO: {no_txt}\n"
             f"  Edge: {edge_txt} {edge_icon}\n"
             f"{block_txt}{opp_txt}\n"
         )
+
     macro_txt = ""
     if macro:
-        vix_s = _e(f"{macro.vix:.2f}") if macro.vix else "\u2014"
-        fed_s = _e(f"{macro.fed_rate:.2f}%") if macro.fed_rate else "\u2014"
-        t10_s = _e(f"{macro.t10y:.2f}%") if macro.t10y else "\u2014"
-        spr_s = _e(f"{macro.spread:+.2f}%") if macro.spread is not None else "\u2014"
-        macro_txt = f"\n\U0001f321 *Macro*\n  VIX: {vix_s}   Fed: {fed_s}   T10Y: {t10_s}   Spread: {spr_s}\n"
+        vix_s = f"{macro.vix:.2f}" if macro.vix else "—"
+        fed_s = f"{macro.fed_rate:.2f}%" if macro.fed_rate else "—"
+        t10_s = f"{macro.t10y:.2f}%" if macro.t10y else "—"
+        spr_s = f"{macro.spread:+.2f}%" if macro.spread is not None else "—"
+        macro_txt = f"\n🌡 <b>Macro</b>\n  VIX: {vix_s}   Fed: {fed_s}   T10Y: {t10_s}   Spread: {spr_s}\n"
+
     sent_txt = ""
     if sent:
-        nlp_s  = _e(f"{sent.score:+.2f}")
-        fg_s   = _e(f"{sent.fear_greed}/100")
-        bias_s = _e(sent.direction_bias)
-        sent_txt = f"\n\U0001f4f0 *Sentimiento*\n  NLP: {nlp_s}   F\\&G: {fg_s}   Bias: {bias_s}\n"
+        sent_txt = (
+            f"\n📰 <b>Sentimiento</b>\n"
+            f"  NLP: {sent.score:+.2f}   F&G: {sent.fear_greed}/100   Bias: {sent.direction_bias}\n"
+        )
+
     full = "\n".join(lines) + macro_txt + sent_txt
     if len(full) > 4000:
-        await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN_V2)
+        await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.HTML)
         if macro_txt or sent_txt:
-            await update.message.reply_text(macro_txt + sent_txt, parse_mode=ParseMode.MARKDOWN_V2)
+            await update.message.reply_text(macro_txt + sent_txt, parse_mode=ParseMode.HTML)
     else:
-        await update.message.reply_text(full, parse_mode=ParseMode.MARKDOWN_V2)
+        await update.message.reply_text(full, parse_mode=ParseMode.HTML)
 
 
 @_require_auth
