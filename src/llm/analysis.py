@@ -72,32 +72,29 @@ def analyze_sentiment(headlines: list) -> SentimentData:
 # ── Bayesian PIP validation ────────────────────────────────────────────────
 
 _PIP_VALIDATION_PROMPT = """
-You are a quantitative prediction market analyst.
+You are a Bayesian probability calibration engine for a prediction market model.
 
-Asset: {asset}
-Current price: ${price:.2f}
-Technical MHS (0-100): {mhs:.1f}
-Directional DBS (-1 to +1): {dbs:+.2f}
-Daily trend: {trend}
-VIX: {vix:.2f}
-NLP sentiment score: {nlp_score:+.2f}
-NLP direction bias: {nlp_bias}
-Our technical probability estimate (PIP): {pip:.2%}
+Input signal data:
+- Asset: {asset}
+- Technical momentum score (MHS 0-100): {mhs:.1f}
+- Directional bias score (DBS -1 to +1): {dbs:+.2f}
+- Daily trend: {trend}
+- Market volatility index (VIX): {vix:.2f}
+- News sentiment score (-1 to +1): {nlp_score:+.2f}
+- News direction bias: {nlp_bias}
+- Model prior probability estimate: {pip:.4f}
 
-Question: is our {pip:.0%} probability that {asset} goes UP today reasonable,
-given the technical context and macro conditions you know about?
+Task: calibrate the prior probability using Bayesian updating.
+Base rate for daily up moves in this asset class: 0.52-0.55.
+Maximum adjustment from prior: ±0.10.
 
-Consider:
-- Base rate for crypto/equity daily up moves (~52-55% historically)
-- Whether current macro context supports or contradicts the signal
-- Adjust by at most ±0.10 from our estimate
-
-Return ONLY JSON (no markdown):
+Output ONLY this JSON object, nothing else:
 {{"valid": true, "adjusted_pip": {pip:.3f}, "confidence": "medium", "reason": "one sentence"}}
 
-Rules:
-- adjusted_pip must be between 0.30 and 0.70
-- confidence: high | medium | low
+Constraints:
+- adjusted_pip must be a float between 0.30 and 0.70
+- confidence: "high" | "medium" | "low"
+- reason: one sentence explaining the calibration
 """
 
 
@@ -141,7 +138,12 @@ def validate_pip(asset: str, pip: float, mhs: float, dbs: float,
     try:
         if raw.startswith("```"):
             raw = raw.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
-        result = json.loads(raw)
+        # Detect refusal — if response doesn't start with { it's prose, not JSON
+        raw_stripped = raw.strip()
+        if not raw_stripped.startswith("{"):
+            return {"valid": True, "adjusted_pip": pip, "confidence": "low",
+                    "reason": "LLM returned non-JSON — using technical PIP"}
+        result = json.loads(raw_stripped)
 
         llm_pip = float(result.get("adjusted_pip", pip))
         llm_pip = max(0.30, min(0.70, llm_pip))

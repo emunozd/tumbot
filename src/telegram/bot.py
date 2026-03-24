@@ -16,8 +16,7 @@ log = logging.getLogger("tumbot.telegram")
 
 try:
     from telegram import (
-        Update, BotCommand,
-        ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove,
+        Update, BotCommand, ReplyKeyboardRemove,
     )
     from telegram.ext import (
         ApplicationBuilder, CommandHandler, ContextTypes, Application,
@@ -34,17 +33,7 @@ _app:        Optional[object]         = None
 _start_time: datetime                 = datetime.now(ET)
 _paused      = threading.Event()
 
-_MENU = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton("📈 /signals"),   KeyboardButton("💼 /portfolio")],
-        [KeyboardButton("📊 /positions"), KeyboardButton("📋 /trades")],
-        [KeyboardButton("🤖 /status"),    KeyboardButton("⏸ /pause")],
-        [KeyboardButton("▶️ /resume"),    KeyboardButton("❓ /help")],
-    ],
-    resize_keyboard=True,
-    is_persistent=True,
-    input_field_placeholder="Elige un comando ↓",
-) if HAS_TG else None
+_MENU = None  # keyboard removed — use Menu button in chat bar instead
 
 
 def init(state: dict, lock: threading.Lock) -> None:
