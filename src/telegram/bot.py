@@ -373,7 +373,7 @@ async def cmd_signals(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> Non
         if has_edge and has_mhs:
             edge_icon = "✅ listo para entrar"
         elif has_edge and not has_mhs:
-            edge_icon = f"⚠️ edge OK pero MHS {mhs:.0f}<{MHS_MIN_DAILY:.0f}"
+            edge_icon = f"⚠️ edge OK pero MHS {mhs:.0f}&lt;{MHS_MIN_DAILY:.0f}"
         elif edge and edge > 0:
             edge_icon = "🔶 edge insuficiente"
         else:
