@@ -39,6 +39,17 @@ WATCH_ASSETS: Dict[str, dict] = {
         "resolves_hour":    12,          # 12:00 PM ET
         "resolves_minute":  0,
     },
+    "XRP-USD": {
+        "name":             "XRP",
+        "poly_slug_prefix": "xrp-up-or-down-on",
+        "poly_slug":        "",
+        "token_yes":        "",
+        "token_no":         "",
+        "resolution":       "daily",
+        "asset_type":       "crypto",    # 24/7, igual que BTC y ETH
+        "resolves_hour":    12,          # 12:00 PM ET — Binance noon
+        "resolves_minute":  0,
+    },
     "^GSPC": {
         "name":             "S&P 500",
         "poly_slug_prefix": "spx-up-or-down-on",
@@ -162,6 +173,7 @@ FRED_SERIES: Dict[str, str] = {
 DAILY_TITLE_PATTERNS: Dict[str, list] = {
     "BTC-USD": ["btc", "bitcoin"],
     "ETH-USD": ["eth", "ethereum"],
+    "XRP-USD": ["xrp", "ripple"],
     "^GSPC":   ["spx", "s&p", "s&p 500", "sp500"],
     "^NDX":    ["ndx", "nasdaq", "nasdaq 100", "nasdaq-100"],
     "AAPL":    ["apple", "aapl"],
