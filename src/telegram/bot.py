@@ -70,6 +70,7 @@ def _run_polling(token: str) -> None:
         ]:
             _app.add_handler(CommandHandler(name, fn))
 
+        """
         await _app.bot.set_my_commands([
             BotCommand("signals",     "Señales MHS · DBS · PIP por asset"),
             BotCommand("portfolio",   "Capital, drawdown, win-rate"),
@@ -82,6 +83,7 @@ def _run_polling(token: str) -> None:
             BotCommand("help",        "Lista de comandos"),
             BotCommand("desvincular", "Libera el ownership del bot"),
         ])
+        """
 
         await _app.initialize()
         await _app.start()
