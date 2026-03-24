@@ -386,10 +386,23 @@ def startup():
             except Exception as e:
                 console.print(f"[red]  Could not restore {asset}: {e}[/]")
 
-    # Load price history
+    # Load price history (4yr candles_hist, load-once delta-update)
     console.print("[dim]Checking price history...[/]")
     for ticker in WATCH_ASSETS:
         ensure_history(ticker, print_fn=lambda m: console.print(f"[dim]{m}[/]"))
+
+    # Load 1D candles for any asset that has none yet.
+    # candles_1d only refreshes at 00:01 ET in the clock loop — if the host
+    # is off at that time (e.g. shuts down at midnight, restarts at 4:30 AM),
+    # new assets added to WATCH_ASSETS would never get their initial 1D data.
+    # This ensures every asset has candles_1d populated on every startup.
+    console.print("[dim]Checking 1D candles...[/]")
+    for ticker in WATCH_ASSETS:
+        if DB.get_last_1d_ts(ticker) == 0:
+            console.print(f"[dim]  {ticker}: no 1D candles found — loading now...[/]")
+            fetch_1d(ticker)
+        else:
+            console.print(f"[dim]  {ticker}: 1D candles OK[/]")
 
     # Discover today's Polymarket markets
     console.print("[dim]Discovering today's markets...[/]")
