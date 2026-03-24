@@ -351,7 +351,11 @@ async def cmd_signals(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> Non
         blocked = mhs_d.get("blocked", False) if isinstance(mhs_d, dict) else False
         bdown   = mhs_d.get("breakdown", {}) if isinstance(mhs_d, dict) else {}
         dir_lbl = dbs_d.get("direction", "NEUTRAL") if isinstance(dbs_d, dict) else "NEUTRAL"
-        votes   = dbs_d.get("votes", 0) if isinstance(dbs_d, dict) else 0
+        votes_raw = dbs_d.get("votes", 0) if isinstance(dbs_d, dict) else 0
+        if isinstance(votes_raw, dict):
+            votes = sum(1 for v in votes_raw.values() if v > 0)
+        else:
+            votes = int(votes_raw)
         dir_icon = {"LONG": "🟢", "SHORT": "🔴", "NEUTRAL": "⚪"}.get(dir_lbl, "⚪")
         mhs_bar  = "█" * int(mhs // 10) + "░" * (10 - int(mhs // 10))
 
@@ -361,7 +365,7 @@ async def cmd_signals(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> Non
         no_txt    = f"{no_p:.3f}"  if no_p  else "—"
 
         side_price = yes_p if dir_lbl == "LONG" else no_p
-        edge       = round(pip_adj - side_price, 3) if side_price else None
+        edge       = round(pip - side_price, 3) if side_price else None
         edge_txt   = f"{edge:+.3f}" if edge is not None else "—"
         edge_icon  = "✅" if (edge and edge >= 0.08) else ("⚠️" if (edge and edge > 0) else "❌")
 
