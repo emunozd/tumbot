@@ -50,6 +50,28 @@ WATCH_ASSETS: Dict[str, dict] = {
         "resolves_hour":    16,          # 4:00 PM ET — NYSE close
         "resolves_minute":  0,
     },
+    "AAPL": {
+        "name":             "Apple",
+        "poly_slug_prefix": "aapl-up-or-down-on",
+        "poly_slug":        "",
+        "token_yes":        "",
+        "token_no":         "",
+        "resolution":       "daily",
+        "asset_type":       "equity_etf",
+        "resolves_hour":    16,          # 4:00 PM ET — NYSE close
+        "resolves_minute":  0,
+    },
+    "NVDA": {
+        "name":             "NVIDIA",
+        "poly_slug_prefix": "nvda-up-or-down-on",
+        "poly_slug":        "",
+        "token_yes":        "",
+        "token_no":         "",
+        "resolution":       "daily",
+        "asset_type":       "equity_etf",
+        "resolves_hour":    16,          # 4:00 PM ET — NYSE close
+        "resolves_minute":  0,
+    },
 }
 
 # ── Signal thresholds ──────────────────────────────────────────────────────
