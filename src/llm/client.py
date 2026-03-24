@@ -7,7 +7,8 @@ The rest of the bot calls llm_chat() — it never touches SDK specifics.
 Supported backends:
   anthropic — native Anthropic SDK (claude-*)
   openai    — any OpenAI-compatible endpoint:
-              any local OpenAI-compatible server (LM Studio, vLLM, etc.), Groq, Together, OpenAI
+              any local OpenAI-compatible server (LM Studio, vLLM, mlx-lm, etc.),
+              Groq, Together, OpenAI
 """
 
 from typing import Optional
@@ -46,10 +47,14 @@ def _build_client():
 _client = _build_client()
 
 
-def llm_chat(prompt: str, max_tokens: int = 500) -> Optional[str]:
+def llm_chat(prompt: str, max_tokens: int = 200) -> Optional[str]:
     """
     Send a prompt to the configured LLM and return the response text.
     Returns None on any failure — callers must handle the None case gracefully.
+
+    Default max_tokens=200 is sufficient for the structured JSON responses
+    this bot requests (sentiment ~150 tokens worst case, PIP ~100 tokens).
+    Callers that need a different budget pass their own max_tokens explicitly.
     """
     if _client is None:
         return None

@@ -142,17 +142,43 @@ GAMMA_API    = "https://gamma-api.polymarket.com"
 #   LLM_API_KEY=gsk_...
 #   LLM_MODEL=llama-3.3-70b-versatile
 #
+# Local MLX (Apple Silicon):
+#   LLM_BACKEND=openai
+#   LLM_BASE_URL=http://192.168.0.90:8181/v1
+#   LLM_API_KEY=none
+#   LLM_MODEL=mlx-community/Qwen3.5-35B-A3B-4bit
+#
 LLM_BACKEND  = os.environ.get("LLM_BACKEND", "anthropic").lower()
 LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "")
 LLM_MODEL    = os.environ.get("LLM_MODEL",    "claude-sonnet-4-20250514")
 LLM_API_KEY  = os.environ.get("LLM_API_KEY",  os.environ.get("ANTHROPIC_API_KEY", ""))
 
-# Confidence cap per model — smaller local models should influence PIP less
+# ── Confidence cap per model ───────────────────────────────────────────────
+# Controls how much the LLM can shift the raw technical PIP.
+# Larger / more capable models get a higher cap (up to 1.0).
+# Smaller or quantized local models are capped lower to limit noise.
+# Matching is substring — e.g. "qwen3.5" matches "mlx-community/Qwen3.5-35B-A3B-4bit".
 MODEL_CONF_CAPS: Dict[str, float] = {
-    "claude":   1.00, "gpt-4": 1.00, "gpt-4o": 1.00,
-    "llama3.3": 0.80, "llama-3.3": 0.80, "deepseek": 0.75,
-    "llama3.2": 0.45, "llama3.1": 0.50, "mistral": 0.45,
-    "llama3":   0.50, "phi": 0.35, "gemma": 0.40,
+    # Cloud frontier models
+    "claude":      1.00,
+    "gpt-4o":      1.00,
+    "gpt-4":       1.00,
+    # Strong open-source / local models
+    "qwen3.5":     0.80,   # Qwen3.5-35B-A3B — MoE, strong instruction following
+    "qwen3":       0.75,   # Qwen3 family (30B-A3B and smaller)
+    "llama3.3":    0.80,
+    "llama-3.3":   0.80,
+    "deepseek":    0.75,
+    # Mid-tier local models
+    "llama3.1":    0.50,
+    "llama3":      0.50,
+    "llama-3.1":   0.50,
+    # Smaller / weaker local models
+    "llama3.2":    0.45,
+    "llama-3.2":   0.45,
+    "mistral":     0.45,
+    "phi":         0.35,
+    "gemma":       0.40,
 }
 
 # ── Database ───────────────────────────────────────────────────────────────

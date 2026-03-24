@@ -5,6 +5,10 @@ Single Responsibility: build prompts and parse structured LLM responses.
 Two tasks:
   1. Sentiment analysis of news headlines → SentimentData
   2. Bayesian PIP validation → adjusted probability
+
+Token budget (confirmed safe with Qwen3.5-35B-A3B and Claude/GPT-4):
+  analyze_sentiment : max_tokens=150  (worst-case JSON ~75 tokens, 2x headroom)
+  validate_pip      : max_tokens=100  (worst-case JSON ~45 tokens, 2x headroom)
 """
 
 import json
@@ -48,7 +52,7 @@ def analyze_sentiment(headlines: list) -> SentimentData:
         return SentimentData()
 
     heads_text = "\n".join(f"- {n['headline']}" for n in headlines[:12])
-    raw = llm_chat(_SENTIMENT_PROMPT.format(headlines=heads_text), max_tokens=350)
+    raw = llm_chat(_SENTIMENT_PROMPT.format(headlines=heads_text), max_tokens=150)
 
     if raw is None:
         return SentimentData()
@@ -72,29 +76,32 @@ def analyze_sentiment(headlines: list) -> SentimentData:
 # ── Bayesian PIP validation ────────────────────────────────────────────────
 
 _PIP_VALIDATION_PROMPT = """
-You are a Bayesian probability calibration engine for a prediction market model.
+You are a quantitative prediction market analyst.
 
-Input signal data:
-- Asset: {asset}
-- Technical momentum score (MHS 0-100): {mhs:.1f}
-- Directional bias score (DBS -1 to +1): {dbs:+.2f}
-- Daily trend: {trend}
-- Market volatility index (VIX): {vix:.2f}
-- News sentiment score (-1 to +1): {nlp_score:+.2f}
-- News direction bias: {nlp_bias}
-- Model prior probability estimate: {pip:.4f}
+Asset: {asset}
+Current price: ${price:.2f}
+Technical MHS (0-100): {mhs:.1f}
+Directional DBS (-1 to +1): {dbs:+.2f}
+Daily trend: {trend}
+VIX: {vix:.2f}
+NLP sentiment score: {nlp_score:+.2f}
+NLP direction bias: {nlp_bias}
+Our technical probability estimate (PIP): {pip:.2%}
 
-Task: calibrate the prior probability using Bayesian updating.
-Base rate for daily up moves in this asset class: 0.52-0.55.
-Maximum adjustment from prior: ±0.10.
+Question: is our {pip:.0%} probability that {asset} goes UP today reasonable,
+given the technical context and macro conditions you know about?
 
-Output ONLY this JSON object, nothing else:
+Consider:
+- Base rate for crypto/equity daily up moves (~52-55% historically)
+- Whether current macro context supports or contradicts the signal
+- Adjust by at most ±0.10 from our estimate
+
+Return ONLY JSON (no markdown):
 {{"valid": true, "adjusted_pip": {pip:.3f}, "confidence": "medium", "reason": "one sentence"}}
 
-Constraints:
-- adjusted_pip must be a float between 0.30 and 0.70
-- confidence: "high" | "medium" | "low"
-- reason: one sentence explaining the calibration
+Rules:
+- adjusted_pip must be between 0.30 and 0.70
+- confidence: high | medium | low
 """
 
 
@@ -121,6 +128,9 @@ def validate_pip(asset: str, pip: float, mhs: float, dbs: float,
          (smaller local models get less weight than GPT-4/Claude)
 
     Falls back to original PIP if LLM is unavailable or returns bad JSON.
+
+    Note: this function is throttled in main.py (called at most once per
+    30 minutes per asset) to avoid redundant LLM calls between refreshes.
     """
     raw = llm_chat(_PIP_VALIDATION_PROMPT.format(
         asset=asset, price=0,  # price is cosmetic context only
@@ -129,7 +139,7 @@ def validate_pip(asset: str, pip: float, mhs: float, dbs: float,
         nlp_score=sent.score,
         nlp_bias=sent.direction_bias,
         pip=pip,
-    ), max_tokens=200)
+    ), max_tokens=100)
 
     if raw is None:
         return {"valid": True, "adjusted_pip": pip, "confidence": "low",
@@ -138,12 +148,7 @@ def validate_pip(asset: str, pip: float, mhs: float, dbs: float,
     try:
         if raw.startswith("```"):
             raw = raw.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
-        # Detect refusal — if response doesn't start with { it's prose, not JSON
-        raw_stripped = raw.strip()
-        if not raw_stripped.startswith("{"):
-            return {"valid": True, "adjusted_pip": pip, "confidence": "low",
-                    "reason": "LLM returned non-JSON — using technical PIP"}
-        result = json.loads(raw_stripped)
+        result = json.loads(raw)
 
         llm_pip = float(result.get("adjusted_pip", pip))
         llm_pip = max(0.30, min(0.70, llm_pip))

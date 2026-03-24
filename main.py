@@ -91,32 +91,41 @@ if LIVE_MODE:
 # ── Shared state ───────────────────────────────────────────────────────────
 lock = threading.Lock()
 
+# Throttle: validate_pip is called at most once every 30 min per asset.
+# The LLM has no new intraday information between consecutive 1-min ticks,
+# so calling it every minute wastes tokens without improving signal quality.
+PIP_THROTTLE_SECS = 1800  # 30 minutes — aligned with sentiment refresh cadence
+
 state = {
-    "candles_1h":    {a: [] for a in WATCH_ASSETS},
-    "candles_1d":    {a: [] for a in WATCH_ASSETS},
-    "last_price":    {a: None for a in WATCH_ASSETS},
-    "mhs":           {a: {} for a in WATCH_ASSETS},
-    "dbs":           {a: {} for a in WATCH_ASSETS},
-    "pip":           {a: None for a in WATCH_ASSETS},
-    "pip_validated": {a: {} for a in WATCH_ASSETS},
-    "ev":            {a: None for a in WATCH_ASSETS},
-    "elr":           {a: None for a in WATCH_ASSETS},
-    "tf_trend":      {a: "neutral" for a in WATCH_ASSETS},
-    "poly_prices":   {a: {"yes": None, "no": None, "mid": None} for a in WATCH_ASSETS},
-    "opportunities": {a: None for a in WATCH_ASSETS},
-    "positions":     {},
-    "trades":        [],
-    "capital_usdc":  CAPITAL_INITIAL,
-    "peak_capital":  CAPITAL_INITIAL,
-    "bootstrap_ci":  None,   # (lo, hi) tuple once 30+ trades exist
-    "macro_data":    None,
-    "sentiment_data":None,
-    "news":          [],
-    "last_update":   "—",
-    "last_signal":   "—",
-    "status":        "Starting...",
-    "fetching":      set(),
-    "countdown":     60,
+    "candles_1h":          {a: [] for a in WATCH_ASSETS},
+    "candles_1d":          {a: [] for a in WATCH_ASSETS},
+    "last_price":          {a: None for a in WATCH_ASSETS},
+    "mhs":                 {a: {} for a in WATCH_ASSETS},
+    "dbs":                 {a: {} for a in WATCH_ASSETS},
+    "pip":                 {a: None for a in WATCH_ASSETS},
+    "pip_validated":       {a: {} for a in WATCH_ASSETS},
+    "ev":                  {a: None for a in WATCH_ASSETS},
+    "elr":                 {a: None for a in WATCH_ASSETS},
+    "tf_trend":            {a: "neutral" for a in WATCH_ASSETS},
+    "poly_prices":         {a: {"yes": None, "no": None, "mid": None} for a in WATCH_ASSETS},
+    "opportunities":       {a: None for a in WATCH_ASSETS},
+    "positions":           {},
+    "trades":              [],
+    "capital_usdc":        CAPITAL_INITIAL,
+    "peak_capital":        CAPITAL_INITIAL,
+    "bootstrap_ci":        None,   # (lo, hi) tuple once 30+ trades exist
+    "macro_data":          None,
+    "sentiment_data":      None,
+    "news":                [],
+    "last_update":         "—",
+    "last_signal":         "—",
+    "status":              "Starting...",
+    "fetching":            set(),
+    "countdown":           60,
+    # ── LLM throttle ──────────────────────────────────────────────────────
+    # Tracks the last time validate_pip was actually called per asset.
+    # Key: asset ticker  Value: time.time() float
+    "last_pip_validation": {},
 }
 
 
@@ -220,6 +229,7 @@ def do_run_signals():
         macro = state.get("macro_data") or MacroData()
         sent  = state.get("sentiment_data") or SentimentData()
         recent_trades = DB.load_recent_trades(limit=200)
+        now_ts = time.time()
 
         for asset in WATCH_ASSETS:
             c1h = state["candles_1h"].get(asset, [])
@@ -234,14 +244,24 @@ def do_run_signals():
             tf       = daily_trend(c1d)
             pip_raw  = compute_pip(dbs_data["score"])
 
-            # Bayesian PIP validation (only if MHS is promising)
-            pip_validated = {}
+            # ── Bayesian PIP validation (throttled to once per 30 min per asset) ──
+            # The LLM inputs (VIX, sentiment, macro) only refresh every 30-60 min,
+            # so calling validate_pip every minute adds cost without new signal value.
+            # On the first call ever (no prior timestamp) it runs immediately.
+            pip_validated = state["pip_validated"].get(asset, {})
             pip_final     = pip_raw
+
             if mhs_data["score"] >= 70 and not mhs_data["blocked"]:
-                pip_validated = validate_pip(
-                    asset, pip_raw, mhs_data["score"],
-                    dbs_data["score"], tf, macro, sent
-                )
+                last_val_ts = state["last_pip_validation"].get(asset, 0)
+                if (now_ts - last_val_ts) >= PIP_THROTTLE_SECS:
+                    # Throttle window elapsed — call the LLM and update timestamp
+                    pip_validated = validate_pip(
+                        asset, pip_raw, mhs_data["score"],
+                        dbs_data["score"], tf, macro, sent
+                    )
+                    with lock:
+                        state["last_pip_validation"][asset] = now_ts
+                # Always apply whatever validated PIP we have (fresh or cached)
                 if pip_validated.get("valid", True):
                     pip_final = pip_validated.get("adjusted_pip", pip_raw)
 
