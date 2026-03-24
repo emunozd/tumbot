@@ -367,7 +367,17 @@ async def cmd_signals(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> Non
         side_price = yes_p if dir_lbl == "LONG" else no_p
         edge       = round(pip - side_price, 3) if side_price else None
         edge_txt   = f"{edge:+.3f}" if edge is not None else "—"
-        edge_icon  = "✅" if (edge and edge >= 0.08) else ("⚠️" if (edge and edge > 0) else "❌")
+        from src.config import MHS_MIN_DAILY
+        has_edge = edge and edge >= 0.08
+        has_mhs  = mhs >= MHS_MIN_DAILY
+        if has_edge and has_mhs:
+            edge_icon = "✅ listo para entrar"
+        elif has_edge and not has_mhs:
+            edge_icon = f"⚠️ edge OK pero MHS {mhs:.0f}<{MHS_MIN_DAILY:.0f}"
+        elif edge and edge > 0:
+            edge_icon = "🔶 edge insuficiente"
+        else:
+            edge_icon = "❌ sin edge"
 
         pip_note = f" → adj {pip_adj:.3f}" if (pip_v and pip_v.get("valid")) else ""
         opp_txt  = f"\n  ⚡ <b>SEÑAL ACTIVA</b> — Edge {opp.get('edge',0):+.3f}" if opp else ""
