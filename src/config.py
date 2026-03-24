@@ -50,9 +50,9 @@ WATCH_ASSETS: Dict[str, dict] = {
         "resolves_hour":    16,          # 4:00 PM ET — NYSE close
         "resolves_minute":  0,
     },
-    "AAPL": {
-        "name":             "Apple",
-        "poly_slug_prefix": "aapl-up-or-down-on",
+    "^NDX": {
+        "name":             "Nasdaq 100",
+        "poly_slug_prefix": "ndx-up-or-down-on",
         "poly_slug":        "",
         "token_yes":        "",
         "token_no":         "",
@@ -61,9 +61,9 @@ WATCH_ASSETS: Dict[str, dict] = {
         "resolves_hour":    16,          # 4:00 PM ET — NYSE close
         "resolves_minute":  0,
     },
-    "NVDA": {
-        "name":             "NVIDIA",
-        "poly_slug_prefix": "nvda-up-or-down-on",
+    "AAPL": {
+        "name":             "Apple",
+        "poly_slug_prefix": "aapl-up-or-down-on",
         "poly_slug":        "",
         "token_yes":        "",
         "token_no":         "",
@@ -163,6 +163,8 @@ DAILY_TITLE_PATTERNS: Dict[str, list] = {
     "BTC-USD": ["btc", "bitcoin"],
     "ETH-USD": ["eth", "ethereum"],
     "^GSPC":   ["spx", "s&p", "s&p 500", "sp500"],
+    "^NDX":    ["ndx", "nasdaq", "nasdaq 100", "nasdaq-100"],
+    "AAPL":    ["apple", "aapl"],
 }
 DAILY_KEYWORDS = [
     "up today", "go up today", "higher today", "up on",
