@@ -116,7 +116,7 @@ def _require_auth(handler):
 
 def _e(text: str) -> str:
     for ch in r"\_*[]()~`>#+-=|{}.!":
-        text = text.replace(ch, f"\\{ch}")
+        text = text.replace(ch, f"\{ch}")
     return text
 
 def _fmt_pnl(pnl: float) -> str:
@@ -146,7 +146,9 @@ async def cmd_start(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> None:
     owner     = _get_owner()
     if owner and owner == sender_id:
         await update.message.reply_text(
-            "👋 *tumbot activo\\.*\n\nUsa el menú inferior o escribe un comando\\.",
+            "👋 *tumbot activo\.*
+
+Usa el menú inferior o escribe un comando\.",
             parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=ReplyKeyboardRemove(),
         )
@@ -154,11 +156,19 @@ async def cmd_start(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> None:
     if owner and owner != sender_id:
         return
     await update.message.reply_text(
-        "🤖 *Bienvenido a tumbot*\n\n"
-        "Este bot no tiene dueño aún\\.\n\n"
-        "Para reclamarlo envía:\n\n"
-        "`/vincular <frase_secreta>`\n\n"
-        "La frase secreta es el valor de `TELEGRAM_LINK_SECRET` en el `\\.env` del servidor\\.",
+        "🤖 *Bienvenido a tumbot*
+
+"
+        "Este bot no tiene dueño aún\.
+
+"
+        "Para reclamarlo envía:
+
+"
+        "`/vincular <frase_secreta>`
+
+"
+        "La frase secreta es el valor de `TELEGRAM_LINK_SECRET` en el `\.env` del servidor\.",
         parse_mode=ParseMode.MARKDOWN_V2,
     )
 
@@ -170,7 +180,7 @@ async def cmd_vincular(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> No
         return
     if owner and owner == sender_id:
         await update.message.reply_text(
-            "✅ Ya estás vinculado como dueño de este bot\\.",
+            "✅ Ya estás vinculado como dueño de este bot\.",
             parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=ReplyKeyboardRemove(),
         )
@@ -178,7 +188,7 @@ async def cmd_vincular(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> No
     secret_env = os.environ.get("TELEGRAM_LINK_SECRET", "").strip()
     if not secret_env:
         await update.message.reply_text(
-            "⚠️ `TELEGRAM_LINK_SECRET` no configurado en el servidor\\.",
+            "⚠️ `TELEGRAM_LINK_SECRET` no configurado en el servidor\.",
             parse_mode=ParseMode.MARKDOWN_V2,
         )
         return
@@ -189,8 +199,11 @@ async def cmd_vincular(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> No
     DB.set_bot_config("owner_chat_id", sender_id)
     log.info(f"Bot claimed by chat_id={sender_id}")
     await update.message.reply_text(
-        "🔐 *Bot vinculado correctamente\\.*\n\n"
-        "Eres el único dueño de esta instancia\\.\n"
+        "🔐 *Bot vinculado correctamente\.*
+
+"
+        "Eres el único dueño de esta instancia\.
+"
         "El menú de comandos ya está disponible abajo 👇",
         parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=ReplyKeyboardRemove(),
@@ -204,7 +217,9 @@ async def cmd_desvincular(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") ->
         return
     DB.del_bot_config("owner_chat_id")
     await update.message.reply_text(
-        "🔓 *Bot desvinculado\\.*\n\nUsa `/vincular <secreto>` para reclamarlo de nuevo\\.",
+        "🔓 *Bot desvinculado\.*
+
+Usa `/vincular <secreto>` para reclamarlo de nuevo\.",
         parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=ReplyKeyboardRemove(),
     )
@@ -213,21 +228,41 @@ async def cmd_desvincular(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") ->
 @_require_auth
 async def cmd_help(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> None:
     txt = (
-        "📊 *tumbot — Polymarket trading bot*\n\n"
-        "*Posiciones y portafolio*\n"
-        "  /positions — Posiciones abiertas con SL · TP · PnL\n"
-        "  /portfolio — Capital, drawdown, win\\-rate\n"
-        "  /trades    — Últimos 10 trades cerrados\n\n"
-        "*Señales*\n"
-        "  /signals   — MHS · DBS · PIP por asset\n\n"
-        "*Control*\n"
-        "  /close BTC\\-USD — Fuerza cierre de una posición\n"
-        "  /pause     — Detiene nuevas entradas\n"
-        "  /resume    — Reactiva entradas\n\n"
-        "*Cuenta*\n"
-        "  /desvincular — Libera este bot\n\n"
-        "*Info*\n"
-        "  /status    — Estado del bot y uptime\n"
+        "📊 *tumbot — Polymarket trading bot*
+
+"
+        "*Posiciones y portafolio*
+"
+        "  /positions — Posiciones abiertas con SL · TP · PnL
+"
+        "  /portfolio — Capital, drawdown, win\-rate
+"
+        "  /trades    — Últimos 10 trades cerrados
+
+"
+        "*Señales*
+"
+        "  /signals   — MHS · DBS · PIP por asset
+
+"
+        "*Control*
+"
+        "  /close BTC\-USD — Fuerza cierre de una posición
+"
+        "  /pause     — Detiene nuevas entradas
+"
+        "  /resume    — Reactiva entradas
+
+"
+        "*Cuenta*
+"
+        "  /desvincular — Libera este bot
+
+"
+        "*Info*
+"
+        "  /status    — Estado del bot y uptime
+"
     )
     await update.message.reply_text(txt, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=ReplyKeyboardRemove())
 
@@ -237,9 +272,10 @@ async def cmd_positions(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> N
     positions   = _positions_snap()
     poly_prices = _poly_prices_snap()
     if not positions:
-        await update.message.reply_text("📭 No hay posiciones abiertas ahora mismo\\.", parse_mode=ParseMode.MARKDOWN_V2)
+        await update.message.reply_text("📭 No hay posiciones abiertas ahora mismo\.", parse_mode=ParseMode.MARKDOWN_V2)
         return
-    lines = [f"📈 *Posiciones Abiertas* \\({len(positions)} total\\)\n"]
+    lines = [f"📈 *Posiciones Abiertas* \({len(positions)} total\)
+"]
     for asset, pos in positions.items():
         pp        = poly_prices.get(asset, {})
         cur_price = (pp.get("yes") if pos.side == "YES" else pp.get("no")) or pos.entry_price
@@ -253,20 +289,27 @@ async def cmd_positions(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> N
         side_icon = "🟢 YES" if pos.side == "YES" else "🔴 NO"
         entry_dt  = pos.entry_time.strftime("%b %d %H:%M") if hasattr(pos.entry_time, "strftime") else str(pos.entry_time)
         lines.append(
-            f"*{name}* \\({_e(asset)}\\) — {side_icon}\n"
-            f"  💰 {pos.shares:.2f} shares \\@ ${_e(f'{pos.entry_price:.3f}')} avg\n"
-            f"  📥 ${_e(f'{invested:.2f}')} → ${_e(f'{cur_val:.2f}')}\n"
-            f"  {pnl_icon} PnL: {_e(_fmt_pnl(pnl_usd))} USDC \\({arrow}{abs(pnl_pct):.1f}%\\) \\[{_pnl_bar(pnl_pct)}\\]\n"
-            f"  🛑 SL: ${_e(f'{pos.stop_loss:.3f}')}   🎯 TP: ${_e(f'{pos.take_profit:.3f}')}\n"
-            f"  🗓 {_e(entry_dt)} ET  MHS:{pos.entry_mhs:.0f}  DBS:{pos.entry_dbs:+.2f}  PIP:{pos.entry_pip:.3f}\n"
+            f"*{name}* \({_e(asset)}\) — {side_icon}
+"
+            f"  💰 {pos.shares:.2f} shares \@ ${_e(f'{pos.entry_price:.3f}')} avg
+"
+            f"  📥 ${_e(f'{invested:.2f}')} → ${_e(f'{cur_val:.2f}')}
+"
+            f"  {pnl_icon} PnL: {_e(_fmt_pnl(pnl_usd))} USDC \({arrow}{abs(pnl_pct):.1f}%\) \[{_pnl_bar(pnl_pct)}\]
+"
+            f"  🛑 SL: ${_e(f'{pos.stop_loss:.3f}')}   🎯 TP: ${_e(f'{pos.take_profit:.3f}')}
+"
+            f"  🗓 {_e(entry_dt)} ET  MHS:{pos.entry_mhs:.0f}  DBS:{pos.entry_dbs:+.2f}  PIP:{pos.entry_pip:.3f}
+"
         )
-    await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN_V2)
+    await update.message.reply_text("
+".join(lines), parse_mode=ParseMode.MARKDOWN_V2)
 
 
 @_require_auth
 async def cmd_portfolio(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> None:
     if _state is None:
-        await update.message.reply_text("⚠️ Estado no disponible\\.", parse_mode=ParseMode.MARKDOWN_V2)
+        await update.message.reply_text("⚠️ Estado no disponible\.", parse_mode=ParseMode.MARKDOWN_V2)
         return
     with _lock:
         capital      = _state.get("capital_usdc", 0.0)
@@ -285,16 +328,27 @@ async def cmd_portfolio(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> N
     ci_txt = ""
     if bootstrap_ci:
         lo, hi = bootstrap_ci
-        ci_txt = f"\n  Win CI 95%: {_e(f'{lo:.1%}')} – {_e(f'{hi:.1%}')}"
+        ci_txt = f"
+  Win CI 95%: {_e(f'{lo:.1%}')} – {_e(f'{hi:.1%}')}"
     txt = (
-        f"💼 *Resumen del Portafolio*\n\n"
-        f"  💵 Disponible: ${_e(f'{capital:.2f}')} USDC\n"
-        f"  📊 Invertido:  ${_e(f'{invested:.2f}')} USDC\n"
-        f"  🏦 Total:      ${_e(f'{total_val:.2f}')} USDC\n"
-        f"  {dd_icon} Drawdown: {_e(f'{drawdown:.1f}')}% desde pico \\(${_e(f'{peak:.2f}')}\\)\n"
-        f"  📈 PnL total: {_e(_fmt_pnl(total_pnl))} USDC\n\n"
-        f"  🎯 Win rate: {_e(f'{win_rate:.1f}')}% \\({len(wins)}W / {len(losses)}L\\){ci_txt}\n"
-        f"  🔁 Trades: {len(recent)}  📂 Pos abiertas: {len(positions)}\n"
+        f"💼 *Resumen del Portafolio*
+
+"
+        f"  💵 Disponible: ${_e(f'{capital:.2f}')} USDC
+"
+        f"  📊 Invertido:  ${_e(f'{invested:.2f}')} USDC
+"
+        f"  🏦 Total:      ${_e(f'{total_val:.2f}')} USDC
+"
+        f"  {dd_icon} Drawdown: {_e(f'{drawdown:.1f}')}% desde pico \(${_e(f'{peak:.2f}')}\)
+"
+        f"  📈 PnL total: {_e(_fmt_pnl(total_pnl))} USDC
+
+"
+        f"  🎯 Win rate: {_e(f'{win_rate:.1f}')}% \({len(wins)}W / {len(losses)}L\){ci_txt}
+"
+        f"  🔁 Trades: {len(recent)}  📂 Pos abiertas: {len(positions)}
+"
     )
     await update.message.reply_text(txt, parse_mode=ParseMode.MARKDOWN_V2)
 
@@ -318,8 +372,12 @@ async def cmd_signals(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> Non
         macro     = _state.get("macro_data")
         sent      = _state.get("sentiment_data")
 
-    pause_note = "⏸ <b>Motor PAUSADO</b>\n\n" if _paused.is_set() else ""
-    lines = [f"🔭 <b>Dashboard de Señales</b>\n\n{pause_note}"]
+    pause_note = "⏸ <b>Motor PAUSADO</b>
+
+" if _paused.is_set() else ""
+    lines = [f"🔭 <b>Dashboard de Señales</b>
+
+{pause_note}"]
 
     for asset in WATCH_ASSETS:
         mhs_d   = mhs_map.get(asset, {})
@@ -352,33 +410,53 @@ async def cmd_signals(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> Non
         yes_txt   = f"{yes_p:.3f}" if yes_p else "—"
         no_txt    = f"{no_p:.3f}"  if no_p  else "—"
 
-        side_price = yes_p if dir_lbl == "LONG" else no_p
-        edge       = round(pip - side_price, 3) if side_price else None
-        edge_txt   = f"{edge:+.3f}" if edge is not None else "—"
+        # Edge only makes sense when there is a clear directional signal.
+        # For NEUTRAL assets, showing edge against no_p produces misleading
+        # large positive numbers that look like opportunities but aren't —
+        # the engine would never enter a NEUTRAL asset regardless.
         from src.config import MHS_MIN_DAILY
-        has_edge = edge and edge >= 0.08
+        if dir_lbl == "LONG" and yes_p:
+            edge = round(pip - yes_p, 3)
+        elif dir_lbl == "SHORT" and no_p:
+            edge = round((1.0 - pip) - no_p, 3)
+        else:
+            edge = None  # NEUTRAL — no meaningful edge to display
+
+        edge_txt   = f"{edge:+.3f}" if edge is not None else "—"
+        has_edge = edge is not None and edge >= 0.08
         has_mhs  = mhs >= MHS_MIN_DAILY
         if has_edge and has_mhs:
             edge_icon = "✅ listo para entrar"
         elif has_edge and not has_mhs:
             edge_icon = f"⚠️ edge OK pero MHS {mhs:.0f}&lt;{MHS_MIN_DAILY:.0f}"
-        elif edge and edge > 0:
+        elif edge is not None and edge > 0:
             edge_icon = "🔶 edge insuficiente"
+        elif dir_lbl == "NEUTRAL":
+            edge_icon = "⚪ neutral"
         else:
             edge_icon = "❌ sin edge"
 
         pip_note = f" → adj {pip_adj:.3f}" if (pip_v and pip_v.get("valid")) else ""
-        opp_txt  = f"\n  ⚡ <b>SEÑAL ACTIVA</b> — Edge {opp.get('edge',0):+.3f}" if opp else ""
-        block_txt = "\n  🚫 VIX block activo" if blocked else ""
+        opp_txt  = f"
+  ⚡ <b>SEÑAL ACTIVA</b> — Edge {opp.get('edge',0):+.3f}" if opp else ""
+        block_txt = "
+  🚫 VIX block activo" if blocked else ""
 
         lines.append(
-            f"<b>{name}</b> ({asset})  {price_txt}\n"
-            f"  MHS: {mhs:.0f}/100 [{mhs_bar}]  ({t_s})\n"
-            f"  DBS: {dbs:+.2f} {dir_icon} {dir_lbl}  Votes: {votes}/4\n"
-            f"  PIP: {pip:.3f}{pip_note}   Trend: {tf}\n"
-            f"  YES: {yes_txt}   NO: {no_txt}\n"
-            f"  Edge: {edge_txt} {edge_icon}\n"
-            f"{block_txt}{opp_txt}\n"
+            f"<b>{name}</b> ({asset})  {price_txt}
+"
+            f"  MHS: {mhs:.0f}/100 [{mhs_bar}]  ({t_s})
+"
+            f"  DBS: {dbs:+.2f} {dir_icon} {dir_lbl}  Votes: {votes}/4
+"
+            f"  PIP: {pip:.3f}{pip_note}   Trend: {tf}
+"
+            f"  YES: {yes_txt}   NO: {no_txt}
+"
+            f"  Edge: {edge_txt} {edge_icon}
+"
+            f"{block_txt}{opp_txt}
+"
         )
 
     macro_txt = ""
@@ -387,18 +465,26 @@ async def cmd_signals(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> Non
         fed_s = f"{macro.fed_rate:.2f}%" if macro.fed_rate else "—"
         t10_s = f"{macro.t10y:.2f}%" if macro.t10y else "—"
         spr_s = f"{macro.spread:+.2f}%" if macro.spread is not None else "—"
-        macro_txt = f"\n🌡 <b>Macro</b>\n  VIX: {vix_s}   Fed: {fed_s}   T10Y: {t10_s}   Spread: {spr_s}\n"
+        macro_txt = f"
+🌡 <b>Macro</b>
+  VIX: {vix_s}   Fed: {fed_s}   T10Y: {t10_s}   Spread: {spr_s}
+"
 
     sent_txt = ""
     if sent:
         sent_txt = (
-            f"\n📰 <b>Sentimiento</b>\n"
-            f"  NLP: {sent.score:+.2f}   F&G: {sent.fear_greed}/100   Bias: {sent.direction_bias}\n"
+            f"
+📰 <b>Sentimiento</b>
+"
+            f"  NLP: {sent.score:+.2f}   F&G: {sent.fear_greed}/100   Bias: {sent.direction_bias}
+"
         )
 
-    full = "\n".join(lines) + macro_txt + sent_txt
+    full = "
+".join(lines) + macro_txt + sent_txt
     if len(full) > 4000:
-        await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.HTML)
+        await update.message.reply_text("
+".join(lines), parse_mode=ParseMode.HTML)
         if macro_txt or sent_txt:
             await update.message.reply_text(macro_txt + sent_txt, parse_mode=ParseMode.HTML)
     else:
@@ -409,25 +495,29 @@ async def cmd_signals(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> Non
 async def cmd_trades(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> None:
     recent = DB.load_recent_trades(limit=10)
     if not recent:
-        await update.message.reply_text("📭 Aún no hay trades cerrados\\.", parse_mode=ParseMode.MARKDOWN_V2)
+        await update.message.reply_text("📭 Aún no hay trades cerrados\.", parse_mode=ParseMode.MARKDOWN_V2)
         return
-    lines = ["📋 *Últimos 10 Trades*\n"]
+    lines = ["📋 *Últimos 10 Trades*
+"]
     for t in recent:
         pnl  = t.get("pnl", 0.0)
         icon = "🟢" if pnl >= 0 else "🔴"
         lines.append(
             f"{icon} *{_e(t.get('asset','?'))}* {t.get('side','?')} — "
-            f"{_e(_fmt_pnl(pnl))} USDC \\({t.get('pnl_pct', 0):+.1f}%\\)\n"
-            f"  {_e(t.get('reason','?'))}  ·  {_e((t.get('time') or '')[:16])}\n"
+            f"{_e(_fmt_pnl(pnl))} USDC \({t.get('pnl_pct', 0):+.1f}%\)
+"
+            f"  {_e(t.get('reason','?'))}  ·  {_e((t.get('time') or '')[:16])}
+"
         )
-    await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN_V2)
+    await update.message.reply_text("
+".join(lines), parse_mode=ParseMode.MARKDOWN_V2)
 
 
 @_require_auth
 async def cmd_status(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> None:
     from src.config import LLM_BACKEND, LLM_MODEL
     if _state is None:
-        await update.message.reply_text("⚠️ Estado no disponible\\.", parse_mode=ParseMode.MARKDOWN_V2)
+        await update.message.reply_text("⚠️ Estado no disponible\.", parse_mode=ParseMode.MARKDOWN_V2)
         return
     with _lock:
         fetching    = set(_state.get("fetching", set()))
@@ -441,17 +531,31 @@ async def cmd_status(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> None
     except Exception:
         LIVE_MODE = False
     txt = (
-        f"🤖 *Estado de tumbot*\n\n"
-        f"  Modo:    {'🔴 LIVE' if LIVE_MODE else '🟡 PAPER'}\n"
-        f"  Motor:   {'⏸ PAUSADO' if _paused.is_set() else '▶️ CORRIENDO'}\n"
-        f"  Uptime:  {_e(_uptime())}\n"
-        f"  Capital: ${_e(f'{capital:.2f}')} USDC\n"
-        f"  Pos:     {n_pos} abiertas\n\n"
-        f"  Último dato:   {_e(last_update)}\n"
-        f"  Última señal:  {_e(last_signal)}\n"
-        f"  Fetching:      {_e(', '.join(fetching) if fetching else 'idle')}\n\n"
-        f"  LLM: {_e(LLM_BACKEND)}/{_e(LLM_MODEL.split('/')[-1])}\n"
-        f"  ℹ️ {_e(status_msg)}\n"
+        f"🤖 *Estado de tumbot*
+
+"
+        f"  Modo:    {'🔴 LIVE' if LIVE_MODE else '🟡 PAPER'}
+"
+        f"  Motor:   {'⏸ PAUSADO' if _paused.is_set() else '▶️ CORRIENDO'}
+"
+        f"  Uptime:  {_e(_uptime())}
+"
+        f"  Capital: ${_e(f'{capital:.2f}')} USDC
+"
+        f"  Pos:     {n_pos} abiertas
+
+"
+        f"  Último dato:   {_e(last_update)}
+"
+        f"  Última señal:  {_e(last_signal)}
+"
+        f"  Fetching:      {_e(', '.join(fetching) if fetching else 'idle')}
+
+"
+        f"  LLM: {_e(LLM_BACKEND)}/{_e(LLM_MODEL.split('/')[-1])}
+"
+        f"  ℹ️ {_e(status_msg)}
+"
     )
     await update.message.reply_text(txt, parse_mode=ParseMode.MARKDOWN_V2)
 
@@ -463,12 +567,12 @@ async def cmd_close(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> None:
         return
     asset = ctx.args[0].upper()
     if _state is None:
-        await update.message.reply_text("⚠️ Estado no disponible\\.", parse_mode=ParseMode.MARKDOWN_V2)
+        await update.message.reply_text("⚠️ Estado no disponible\.", parse_mode=ParseMode.MARKDOWN_V2)
         return
     with _lock:
         pos = _state.get("positions", {}).get(asset)
     if not pos:
-        await update.message.reply_text(f"❌ No hay posición abierta para `{_e(asset)}`\\.", parse_mode=ParseMode.MARKDOWN_V2)
+        await update.message.reply_text(f"❌ No hay posición abierta para `{_e(asset)}`\.", parse_mode=ParseMode.MARKDOWN_V2)
         return
     with _lock:
         if "force_close" not in _state:
@@ -476,9 +580,13 @@ async def cmd_close(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> None:
         _state["force_close"].add(asset)
     name = _e(WATCH_ASSETS.get(asset, {}).get("name", asset))
     await update.message.reply_text(
-        f"⚠️ *Cierre forzado encolado para {name}* \\({_e(asset)}\\)\n\n"
-        f"  {pos.side}  |  {pos.shares:.2f} shares  |  Entry ${_e(f'{pos.entry_price:.3f}')}\n\n"
-        f"Se ejecutará en el próximo tick \\(máx 60s\\)\\.",
+        f"⚠️ *Cierre forzado encolado para {name}* \({_e(asset)}\)
+
+"
+        f"  {pos.side}  |  {pos.shares:.2f} shares  |  Entry ${_e(f'{pos.entry_price:.3f}')}
+
+"
+        f"Se ejecutará en el próximo tick \(máx 60s\)\.",
         parse_mode=ParseMode.MARKDOWN_V2,
     )
 
@@ -486,13 +594,16 @@ async def cmd_close(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> None:
 @_require_auth
 async def cmd_pause(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> None:
     if _paused.is_set():
-        await update.message.reply_text("⏸ El motor ya está pausado\\.", parse_mode=ParseMode.MARKDOWN_V2)
+        await update.message.reply_text("⏸ El motor ya está pausado\.", parse_mode=ParseMode.MARKDOWN_V2)
         return
     _paused.set()
     if _state is not None:
         with _lock: _state["engine_paused"] = True
     await update.message.reply_text(
-        "⏸ *Motor PAUSADO\\.*\n\nNo se abrirán nuevas posiciones\\.\nUsa /resume para reactivar\\.",
+        "⏸ *Motor PAUSADO\.*
+
+No se abrirán nuevas posiciones\.
+Usa /resume para reactivar\.",
         parse_mode=ParseMode.MARKDOWN_V2,
     )
 
@@ -500,12 +611,13 @@ async def cmd_pause(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> None:
 @_require_auth
 async def cmd_resume(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> None:
     if not _paused.is_set():
-        await update.message.reply_text("▶️ El motor ya está corriendo\\.", parse_mode=ParseMode.MARKDOWN_V2)
+        await update.message.reply_text("▶️ El motor ya está corriendo\.", parse_mode=ParseMode.MARKDOWN_V2)
         return
     _paused.clear()
     if _state is not None:
         with _lock: _state["engine_paused"] = False
-    await update.message.reply_text("▶️ *Motor REACTIVADO\\.*\nNuevas entradas habilitadas\\.", parse_mode=ParseMode.MARKDOWN_V2)
+    await update.message.reply_text("▶️ *Motor REACTIVADO\.*
+Nuevas entradas habilitadas\.", parse_mode=ParseMode.MARKDOWN_V2)
 
 
 def _send_sync(text: str) -> None:
@@ -526,38 +638,58 @@ def _send_sync(text: str) -> None:
 def alert_position_opened(asset, side, shares, entry, usdc, sl, tp, mhs, dbs, pip):
     name = _e(WATCH_ASSETS.get(asset, {}).get("name", asset))
     _send_sync(
-        f"🚀 *Posición Abierta*\n\n"
-        f"  {'🟢' if side=='YES' else '🔴'} *{name}* \\({_e(asset)}\\) — {side}\n"
-        f"  {shares:.2f} shares \\@ ${_e(f'{entry:.3f}')}\n"
-        f"  Invertido: ${_e(f'{usdc:.2f}')} USDC\n\n"
-        f"  🛑 SL: ${_e(f'{sl:.3f}')}   🎯 TP: ${_e(f'{tp:.3f}')}\n\n"
+        f"🚀 *Posición Abierta*
+
+"
+        f"  {'🟢' if side=='YES' else '🔴'} *{name}* \({_e(asset)}\) — {side}
+"
+        f"  {shares:.2f} shares \@ ${_e(f'{entry:.3f}')}
+"
+        f"  Invertido: ${_e(f'{usdc:.2f}')} USDC
+
+"
+        f"  🛑 SL: ${_e(f'{sl:.3f}')}   🎯 TP: ${_e(f'{tp:.3f}')}
+
+"
         f"  MHS:{mhs:.0f}  DBS:{dbs:+.2f}  PIP:{pip:.3f}"
     )
 
 def alert_position_closed(asset, side, reason, pnl, pnl_pct, entry, exit_p):
     name = _e(WATCH_ASSETS.get(asset, {}).get("name", asset))
     _send_sync(
-        f"{'🏆' if pnl >= 0 else '💸'} *Posición Cerrada* — {_e(reason)}\n\n"
-        f"  *{name}* \\({_e(asset)}\\) {side}\n"
-        f"  ${_e(f'{entry:.3f}')} → ${_e(f'{exit_p:.3f}')}\n"
-        f"  PnL: {_e(_fmt_pnl(pnl))} USDC \\({pnl_pct:+.1f}%\\)"
+        f"{'🏆' if pnl >= 0 else '💸'} *Posición Cerrada* — {_e(reason)}
+
+"
+        f"  *{name}* \({_e(asset)}\) {side}
+"
+        f"  ${_e(f'{entry:.3f}')} → ${_e(f'{exit_p:.3f}')}
+"
+        f"  PnL: {_e(_fmt_pnl(pnl))} USDC \({pnl_pct:+.1f}%\)"
     )
 
 def alert_stop_loss(asset, side, trigger, pnl):
     name = _e(WATCH_ASSETS.get(asset, {}).get("name", asset))
     _send_sync(
-        f"🛑 *Stop\\-Loss Ejecutado*\n\n"
-        f"  *{name}* \\({_e(asset)}\\) {side}\n"
-        f"  Precio: ${_e(f'{trigger:.3f}')}\n"
+        f"🛑 *Stop\-Loss Ejecutado*
+
+"
+        f"  *{name}* \({_e(asset)}\) {side}
+"
+        f"  Precio: ${_e(f'{trigger:.3f}')}
+"
         f"  Pérdida: {_e(_fmt_pnl(pnl))} USDC"
     )
 
 def alert_take_profit(asset, side, trigger, pnl):
     name = _e(WATCH_ASSETS.get(asset, {}).get("name", asset))
     _send_sync(
-        f"🎯 *Take\\-Profit Alcanzado\\!*\n\n"
-        f"  *{name}* \\({_e(asset)}\\) {side}\n"
-        f"  Precio: ${_e(f'{trigger:.3f}')}\n"
+        f"🎯 *Take\-Profit Alcanzado\!*
+
+"
+        f"  *{name}* \({_e(asset)}\) {side}
+"
+        f"  Precio: ${_e(f'{trigger:.3f}')}
+"
         f"  Ganancia: {_e(_fmt_pnl(pnl))} USDC"
     )
 
