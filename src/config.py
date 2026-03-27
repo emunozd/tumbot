@@ -98,7 +98,7 @@ VIX_BLOCK       = float(os.environ.get("VIX_BLOCK", "30.0"))
 #   Score range is -100 to +100. 45 = MEDIUM conviction minimum.
 #   Lower values → more trades, more false positives.
 #   Higher values → fewer trades, higher precision.
-DIRECTIONAL_MIN = float(os.environ.get("DIRECTIONAL_MIN", "45"))
+DIRECTIONAL_MIN = float(os.environ.get("DIRECTIONAL_MIN", "25"))
 
 # POLY_PRICE_MAX: maximum YES (or NO) price allowed at entry.
 #   Filters out markets where the crowd has already priced the move.
@@ -124,7 +124,7 @@ POLY_PRICE_MAX  = float(os.environ.get("POLY_PRICE_MAX", "0.65"))
 # If violated at startup, defaults are used and a warning is logged.
 #
 TIME_OFFSET        = int(os.environ.get("TIME_OFFSET",        "6"))
-TIME_OFFSET_WINDOW = int(os.environ.get("TIME_OFFSET_WINDOW", "10"))
+TIME_OFFSET_WINDOW = int(os.environ.get("TIME_OFFSET_WINDOW", "16"))
 
 # ── Legacy entry window (kept for in_entry_window() equity candle check) ───
 ENTRY_HOUR_START: Tuple[int, int] = (4,  30)
