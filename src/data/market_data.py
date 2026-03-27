@@ -394,8 +394,21 @@ def discover_daily_markets(watch_assets: dict) -> Dict[str, dict]:
     Returns a dict of {ticker: market_info} for found markets.
     """
     found: Dict[str, dict] = {}
-    now      = datetime.now(ET)
-    tomorrow = now + timedelta(days=1)
+    now = datetime.now(ET)
+
+    def _next_trading_day(dt) -> datetime:
+        """Next Mon-Fri day after dt. Skips Saturday and Sunday."""
+        nd = dt + timedelta(days=1)
+        while nd.weekday() >= 5:   # 5=Sat, 6=Sun
+            nd += timedelta(days=1)
+        return nd
+
+    def _prev_or_same_trading_day(dt) -> datetime:
+        """Same day if Mon-Fri, otherwise most recent Friday."""
+        d = dt
+        while d.weekday() >= 5:
+            d -= timedelta(days=1)
+        return d
 
     for ticker, cfg in watch_assets.items():
         prefix = cfg.get("poly_slug_prefix", "")
@@ -404,14 +417,16 @@ def discover_daily_markets(watch_assets: dict) -> Dict[str, dict]:
 
         # Strategy 1 & 2: deterministic date-based slug
         # Resolution times differ by asset type:
-        #   crypto     → resolves at 12:00 PM ET (after that, use tomorrow)
-        #   equity_etf → resolves at  4:00 PM ET (after that, use tomorrow)
-        # Before the resolution cutoff: try today first, then tomorrow
-        # After  the resolution cutoff: try tomorrow first, then today
-        asset_type     = cfg.get("asset_type", "equity_etf")
-        cutoff_hour    = 12 if asset_type == "crypto" else 16
-        past_cutoff    = now.hour >= cutoff_hour
-        date_order     = [tomorrow, now] if past_cutoff else [now, tomorrow]
+        #   crypto     → resolves at 12:00 PM ET (after that, use next trading day)
+        #   equity_etf → resolves at  4:00 PM ET (after that, use next trading day)
+        # Equity markets only exist Mon-Fri — Saturday/Sunday are skipped.
+        # Example: Friday 6 PM ET → next_trading_day = Monday, not Saturday.
+        asset_type    = cfg.get("asset_type", "equity_etf")
+        cutoff_hour   = 12 if asset_type == "crypto" else 16
+        past_cutoff   = now.hour >= cutoff_hour
+        today_trading = _prev_or_same_trading_day(now)
+        next_trading  = _next_trading_day(now)
+        date_order    = [next_trading, today_trading] if past_cutoff else [today_trading, next_trading]
 
         for dt in date_order:
             if market:

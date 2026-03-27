@@ -235,15 +235,16 @@ async def cmd_help(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> None:
 
 @_require_auth
 async def cmd_positions(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> None:
+    """Usa HTML parse mode — evita todos los problemas de escape de MarkdownV2."""
     positions   = _positions_snap()
     poly_prices = _poly_prices_snap()
     if not positions:
         await update.message.reply_text(
-            "📭 No hay posiciones abiertas ahora mismo\\.",
-            parse_mode=ParseMode.MARKDOWN_V2,
+            "📭 No hay posiciones abiertas ahora mismo.",
+            parse_mode=ParseMode.HTML,
         )
         return
-    lines = [f"📈 *Posiciones Abiertas* \\({len(positions)} total\\)\n"]
+    lines = [f"📈 <b>Posiciones Abiertas</b> ({len(positions)} total)\n"]
     for asset, pos in positions.items():
         pp        = poly_prices.get(asset, {})
         cur_price = (pp.get("yes") if pos.side == "YES" else pp.get("no")) or pos.entry_price
@@ -251,7 +252,7 @@ async def cmd_positions(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> N
         invested  = pos.usdc_spent
         pnl_usd   = cur_val - invested
         pnl_pct   = (pnl_usd / invested * 100) if invested else 0.0
-        name      = _e(WATCH_ASSETS.get(asset, {}).get("name", asset))
+        name      = WATCH_ASSETS.get(asset, {}).get("name", asset)
         pnl_icon  = "🟢" if pnl_usd >= 0 else "🔴"
         arrow     = "▲" if pnl_usd >= 0 else "▼"
         side_icon = "🟢 YES" if pos.side == "YES" else "🔴 NO"
@@ -260,16 +261,16 @@ async def cmd_positions(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> N
             if hasattr(pos.entry_time, "strftime") else str(pos.entry_time)
         )
         lines.append(
-            f"*{name}* \\({_e(asset)}\\) — {side_icon}\n"
-            f"  💰 {pos.shares:.2f} shares \\@ ${_e(f'{pos.entry_price:.3f}')} avg\n"
-            f"  📥 ${_e(f'{invested:.2f}')} → ${_e(f'{cur_val:.2f}')}\n"
-            f"  {pnl_icon} PnL: {_e(_fmt_pnl(pnl_usd))} USDC"
-            f" \\({arrow}{abs(pnl_pct):.1f}%\\) \\[{_pnl_bar(pnl_pct)}\\]\n"
-            f"  🛑 SL: ${_e(f'{pos.stop_loss:.3f}')}   🎯 TP: ${_e(f'{pos.take_profit:.3f}')}\n"
-            f"  🗓 {_e(entry_dt)} ET"
-            f"  MHS:{_e(f"{pos.entry_mhs:.0f}")}  DBS:{_e(f"{pos.entry_dbs:+.2f}")}  PIP:{_e(f"{pos.entry_pip:.3f}")}\n"
+            f"<b>{name}</b> ({asset}) — {side_icon}\n"
+            f"  💰 {pos.shares:.2f} shares @ ${pos.entry_price:.3f} avg\n"
+            f"  📥 ${invested:.2f} → ${cur_val:.2f}\n"
+            f"  {pnl_icon} PnL: {_fmt_pnl(pnl_usd)} USDC"
+            f" ({arrow}{abs(pnl_pct):.1f}%) [{_pnl_bar(pnl_pct)}]\n"
+            f"  🛑 SL: ${pos.stop_loss:.3f}   🎯 TP: ${pos.take_profit:.3f}\n"
+            f"  🗓 {entry_dt} ET  "
+            f"MHS:{pos.entry_mhs:.0f}  DBS:{pos.entry_dbs:+.2f}  PIP:{pos.entry_pip:.3f}\n"
         )
-    await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN_V2)
+    await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.HTML)
 
 
 @_require_auth
