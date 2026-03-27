@@ -251,20 +251,26 @@ def do_run_signals():
             # The LLM inputs (VIX, sentiment, macro) only refresh every 30-60 min,
             # so calling validate_pip every minute adds cost without new signal value.
             # On the first call ever (no prior timestamp) it runs immediately.
+            # ── Directional Predictor (D+1 price direction) ──────────────
+            # Must run BEFORE PIP validation — the LLM trigger uses directional.score.
+            # Pure math, no LLM, fast.
+            directional = compute_directional_score(
+                asset, c1h, c1d, sent, macro
+            )
+
             pip_validated = state["pip_validated"].get(asset, {})
             pip_final     = pip_raw
 
+            # Trigger LLM validation when directional signal is present (|score|>=35)
             if abs(directional.get("score", 0)) >= 35 and not mhs_data["blocked"]:
                 last_val_ts = state["last_pip_validation"].get(asset, 0)
                 if (now_ts - last_val_ts) >= PIP_THROTTLE_SECS:
-                    # Throttle window elapsed — call the LLM and update timestamp
                     pip_validated = validate_pip(
                         asset, pip_raw, mhs_data["score"],
                         dbs_data["score"], tf, macro, sent
                     )
                     with lock:
                         state["last_pip_validation"][asset] = now_ts
-                # Always apply whatever validated PIP we have (fresh or cached)
                 if pip_validated.get("valid", True):
                     pip_final = pip_validated.get("adjusted_pip", pip_raw)
 
@@ -272,13 +278,6 @@ def do_run_signals():
             side_p  = pp.get("yes") if dbs_data["direction"]=="LONG" else pp.get("no")
             ev_val  = expected_value(pip_final, side_p)  if side_p else None
             elr_val = expected_log_return(pip_final, side_p) if side_p else None
-
-            # ── Directional Predictor (D+1 price direction) ──────────────
-            # Runs every minute — pure math, no LLM, fast.
-            # Uses 1H + 1D candles with multi-technique analysis.
-            directional = compute_directional_score(
-                asset, c1h, c1d, sent, macro
-            )
 
             opp = detect_opportunity(
                 asset, mhs_data, dbs_data, pip_final, pp,
