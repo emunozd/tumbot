@@ -421,12 +421,20 @@ def discover_daily_markets(watch_assets: dict) -> Dict[str, dict]:
         #   equity_etf → resolves at  4:00 PM ET (after that, use next trading day)
         # Equity markets only exist Mon-Fri — Saturday/Sunday are skipped.
         # Example: Friday 6 PM ET → next_trading_day = Monday, not Saturday.
-        asset_type    = cfg.get("asset_type", "equity_etf")
-        cutoff_hour   = 12 if asset_type == "crypto" else 16
-        past_cutoff   = now.hour >= cutoff_hour
-        today_trading = _prev_or_same_trading_day(now)
-        next_trading  = _next_trading_day(now)
-        date_order    = [next_trading, today_trading] if past_cutoff else [today_trading, next_trading]
+        asset_type  = cfg.get("asset_type", "equity_etf")
+        cutoff_hour = 12 if asset_type == "crypto" else 16
+        past_cutoff = now.hour >= cutoff_hour
+
+        if asset_type == "crypto":
+            # Crypto trades 7 days — use calendar days, no weekend skipping
+            today_trading = now
+            next_trading  = now + timedelta(days=1)
+        else:
+            # Equity only exists Mon-Fri — skip weekends
+            today_trading = _prev_or_same_trading_day(now)
+            next_trading  = _next_trading_day(now)
+
+        date_order = [next_trading, today_trading] if past_cutoff else [today_trading, next_trading]
 
         for dt in date_order:
             if market:
