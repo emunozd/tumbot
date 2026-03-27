@@ -267,7 +267,7 @@ async def cmd_positions(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> N
             f" \\({arrow}{abs(pnl_pct):.1f}%\\) \\[{_pnl_bar(pnl_pct)}\\]\n"
             f"  🛑 SL: ${_e(f'{pos.stop_loss:.3f}')}   🎯 TP: ${_e(f'{pos.take_profit:.3f}')}\n"
             f"  🗓 {_e(entry_dt)} ET"
-            f"  MHS:{pos.entry_mhs:.0f}  DBS:{pos.entry_dbs:+.2f}  PIP:{pos.entry_pip:.3f}\n"
+            f"  MHS:{_e(f"{pos.entry_mhs:.0f}")}  DBS:{_e(f"{pos.entry_dbs:+.2f}")}  PIP:{_e(f"{pos.entry_pip:.3f}")}\n"
         )
     await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN_V2)
 
@@ -404,7 +404,7 @@ async def cmd_signals(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> Non
         if has_edge and has_mhs:
             edge_icon = "✅ listo para entrar"
         elif has_edge and not has_mhs:
-            edge_icon = f"⚠️ edge OK · esperando ventana horaria"
+            edge_icon = "🔶 edge OK · esperando ventana horaria"
         elif edge is not None and edge > 0:
             edge_icon = "🔶 edge insuficiente"
         elif dir_lbl == "NEUTRAL":
