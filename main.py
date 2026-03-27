@@ -40,6 +40,7 @@ from src.signals.stats import bootstrap_win_rate_ci
 from src.llm.analysis import validate_pip
 from src.signals.indicators import expected_value, expected_log_return
 from src.trading.engine import detect_opportunity, open_position, monitor_position
+from src.signals.predictor import compute_directional_score
 from src.models import PolyPosition, SentimentData, MacroData
 from src.ui.display import build_layout, console
 from src.telegram import bot as tg_bot
@@ -126,6 +127,8 @@ state = {
     # Tracks the last time validate_pip was actually called per asset.
     # Key: asset ticker  Value: time.time() float
     "last_pip_validation": {},
+    # DirectionalPredictor output per asset
+    "directional_score":   {a: {} for a in WATCH_ASSETS},
 }
 
 
@@ -251,7 +254,7 @@ def do_run_signals():
             pip_validated = state["pip_validated"].get(asset, {})
             pip_final     = pip_raw
 
-            if mhs_data["score"] >= 70 and not mhs_data["blocked"]:
+            if abs(directional.get("score", 0)) >= 35 and not mhs_data["blocked"]:
                 last_val_ts = state["last_pip_validation"].get(asset, 0)
                 if (now_ts - last_val_ts) >= PIP_THROTTLE_SECS:
                     # Throttle window elapsed — call the LLM and update timestamp
@@ -270,7 +273,17 @@ def do_run_signals():
             ev_val  = expected_value(pip_final, side_p)  if side_p else None
             elr_val = expected_log_return(pip_final, side_p) if side_p else None
 
-            opp = detect_opportunity(asset, mhs_data, dbs_data, pip_final, pp)
+            # ── Directional Predictor (D+1 price direction) ──────────────
+            # Runs every minute — pure math, no LLM, fast.
+            # Uses 1H + 1D candles with multi-technique analysis.
+            directional = compute_directional_score(
+                asset, c1h, c1d, sent, macro
+            )
+
+            opp = detect_opportunity(
+                asset, mhs_data, dbs_data, pip_final, pp,
+                directional, macro
+            )
             # Recalculate edge with validated PIP
             if opp and pip_validated:
                 opp["pip"]  = pip_final
@@ -279,15 +292,16 @@ def do_run_signals():
                     opp = None
 
             with lock:
-                state["mhs"][asset]           = mhs_data
-                state["dbs"][asset]           = dbs_data
-                state["tf_trend"][asset]      = tf
-                state["pip"][asset]           = pip_raw
-                state["pip_validated"][asset] = pip_validated
-                state["ev"][asset]            = ev_val
-                state["elr"][asset]           = elr_val
-                state["opportunities"][asset] = opp
-                state["last_signal"]          = datetime.now(ET).strftime("%H:%M:%S ET")
+                state["mhs"][asset]              = mhs_data
+                state["dbs"][asset]              = dbs_data
+                state["tf_trend"][asset]         = tf
+                state["pip"][asset]              = pip_raw
+                state["pip_validated"][asset]    = pip_validated
+                state["ev"][asset]               = ev_val
+                state["elr"][asset]              = elr_val
+                state["directional_score"][asset] = directional
+                state["opportunities"][asset]    = opp
+                state["last_signal"]             = datetime.now(ET).strftime("%H:%M:%S ET")
 
             # Monitor open position
             pos = state["positions"].get(asset)

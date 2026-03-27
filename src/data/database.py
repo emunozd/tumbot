@@ -132,12 +132,6 @@ def init_db() -> None:
             capital_usdc  REAL, total_pnl REAL,
             log_return    REAL, trades_count INTEGER, win_rate REAL
         );
-                           
-        CREATE TABLE IF NOT EXISTS bot_config (
-            key        TEXT PRIMARY KEY,
-            value      TEXT NOT NULL,
-            updated_at TEXT
-        );
 
         """)
 
@@ -323,6 +317,32 @@ def trade_stats() -> dict:
     return dict(row) if row else {}
 
 
+def was_traded_recently(asset: str, lookback_hours: float) -> bool:
+    """
+    Check if a trade was opened for this asset within the last lookback_hours.
+
+    Used to prevent re-entering a market that has already been traded during
+    the current resolution window. The lookback is dynamic:
+      lookback = 24 - hours_remaining_until_resolution
+    So if 3 hours remain until noon resolution, lookback = 21 hours.
+
+    Uses trades.created_at (full ISO datetime, always populated) rather than
+    trades.time which only stores HH:MM:SS without date.
+
+    Returns True if a trade exists within the window (block entry),
+    False if no recent trade found (allow entry).
+    """
+    import datetime as _dt
+    cutoff = (_dt.datetime.utcnow() -
+              _dt.timedelta(hours=lookback_hours)).strftime("%Y-%m-%d %H:%M:%S")
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) FROM trades WHERE asset=? AND created_at >= ?",
+            (asset, cutoff)
+        ).fetchone()
+    return (row[0] > 0) if row else False
+
+
 # ── Positions ──────────────────────────────────────────────────────────────
 
 def save_position(asset: str, pos) -> None:
@@ -397,31 +417,3 @@ def db_stats() -> dict:
             r[t] = conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
     r["size_kb"] = os.path.getsize(DB_FILE) / 1024 if os.path.exists(DB_FILE) else 0
     return r
-
-# ── Bot config (Telegram ownership) ───────────────────────────────────────
-
-def get_bot_config(key: str) -> Optional[str]:
-    """Lee un valor de bot_config. Devuelve None si no existe."""
-    with _conn() as conn:
-        row = conn.execute(
-            "SELECT value FROM bot_config WHERE key = ?", (key,)
-        ).fetchone()
-        return row["value"] if row else None
-
-
-def set_bot_config(key: str, value: str) -> None:
-    """Inserta o actualiza una entrada en bot_config."""
-    with _conn() as conn:
-        conn.execute("""
-            INSERT INTO bot_config (key, value, updated_at)
-            VALUES (?, ?, ?)
-            ON CONFLICT(key) DO UPDATE SET
-                value      = excluded.value,
-                updated_at = excluded.updated_at
-        """, (key, value, datetime.now(ET).isoformat()))
-
-
-def del_bot_config(key: str) -> None:
-    """Elimina una entrada de bot_config."""
-    with _conn() as conn:
-        conn.execute("DELETE FROM bot_config WHERE key = ?", (key,))

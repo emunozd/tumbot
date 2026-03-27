@@ -330,6 +330,7 @@ async def cmd_signals(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> Non
         prices    = dict(_state.get("poly_prices", {}))
         lp        = dict(_state.get("last_price", {}))
         tf_map    = dict(_state.get("tf_trend", {}))
+        dir_map   = dict(_state.get("directional_score", {}))
         macro     = _state.get("macro_data")
         sent      = _state.get("sentiment_data")
 
@@ -361,6 +362,19 @@ async def cmd_signals(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> Non
             votes = sum(1 for v in votes_raw.values() if v > 0)
         else:
             votes = int(votes_raw)
+
+        # DirectionalPredictor data
+        dir_d      = dir_map.get(asset, {})
+        d_score    = dir_d.get("score", 0)
+        d_dir      = dir_d.get("direction", "NEUTRAL")
+        d_conv     = dir_d.get("conviction", "NONE")
+        d_bdown    = dir_d.get("breakdown", {})
+        d_signal   = dir_d.get("signal", False)
+        d_icon     = {"UP": "🟢", "DOWN": "🔴", "NEUTRAL": "⚪"}.get(d_dir, "⚪")
+        d_bar_val  = int(abs(d_score) // 10)
+        d_bar      = ("█" * d_bar_val + "░" * (10 - d_bar_val))
+        d_sign     = "+" if d_score >= 0 else ""
+        d_txt      = f"{d_sign}{d_score:.0f}"
 
         dir_icon = {"LONG": "🟢", "SHORT": "🔴", "NEUTRAL": "⚪"}.get(dir_lbl, "⚪")
         mhs_bar  = "█" * int(mhs // 10) + "░" * (10 - int(mhs // 10))
@@ -404,8 +418,19 @@ async def cmd_signals(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> Non
         )
         block_txt = "\n  🚫 VIX block activo" if blocked else ""
 
+        # Directional breakdown compact string
+        d_breakdown_txt = (
+            f"Str:{d_bdown.get('structure',0):.0f} "
+            f"Mom:{d_bdown.get('momentum',0):.0f} "
+            f"Pat:{d_bdown.get('pattern',0):.0f} "
+            f"Fib:{d_bdown.get('fibonacci',0):.0f}"
+        ) if d_bdown else ""
+        d_signal_txt = " ⚡" if d_signal else ""
+
         lines.append(
             f"<b>{name}</b> ({asset})  {price_txt}\n"
+            f"  📊 Dir: {d_txt}/100 [{d_bar}] {d_icon} {d_dir} ({d_conv}){d_signal_txt}\n"
+            f"     {d_breakdown_txt}\n"
             f"  MHS: {mhs:.0f}/100 [{mhs_bar}]  ({t_s})\n"
             f"  DBS: {dbs:+.2f} {dir_icon} {dir_lbl}  Votes: {votes}/4\n"
             f"  PIP: {pip:.3f}{pip_note}   Trend: {tf}\n"

@@ -2,9 +2,18 @@
 trading/engine.py — Signal evaluation and position lifecycle.
 
 Single Responsibility: decide when to open and close positions.
-Reads signals, applies filters, calls execution, persists via DB.
-This is the orchestration layer — it delegates the actual work to the
-other modules and wires them together.
+
+Entry logic updated to use DirectionalPredictor (D+1 price direction)
+instead of MHS threshold. MHS/DBS are kept for monitoring/display.
+
+New entry conditions:
+  1. DirectionalScore magnitude >= DIRECTIONAL_MIN (45 default)
+  2. Polymarket YES price between 0.30 and POLY_PRICE_MAX (0.65)
+     — ensures crowd hasn't already priced the move
+  3. Current ET hour between ENTRY_HOUR_START (4:30) and ENTRY_HOUR_END (9:00)
+     — early window when market is least efficient
+  4. VIX not in panic territory (< VIX_BLOCK)
+  5. Edge (PIP vs market price) >= EDGE_MIN
 """
 
 import math
@@ -14,7 +23,9 @@ from zoneinfo import ZoneInfo
 
 from src.config import (
     MHS_MIN_DAILY, MHS_MIN_WEEKLY, DBS_LONG_THRESH, DBS_SHORT_THRESH,
-    EDGE_MIN, ENTRY_WINDOW_START, ENTRY_WINDOW_END, WATCH_ASSETS, ET
+    EDGE_MIN, ENTRY_WINDOW_START, ENTRY_WINDOW_END, WATCH_ASSETS, ET,
+    DIRECTIONAL_MIN, POLY_PRICE_MAX, ENTRY_HOUR_START, ENTRY_HOUR_END,
+    VIX_BLOCK,
 )
 from src.models import PolyPosition, ClosedTrade, MacroData, SentimentData, Signal
 from src.signals.indicators import log_return, expected_value
@@ -29,55 +40,106 @@ from src.data import database as DB
 
 def in_entry_window(asset: str) -> bool:
     """
-    All assets are always open if there is candle data available.
-
-    Polymarket daily markets run 24/7 — equity ETF markets open at 16:01 ET
-    the day before resolution and close at 16:00 ET on resolution day.
-    There is no reason to block entry by time — if there is edge, we trade.
-    Signal quality naturally drops outside NYSE hours (no fresh 1H candles)
-    which lowers MHS organically. No artificial time gate needed.
-
-    Only returns False if there is zero candle data (first run, no history yet).
+    Check if an asset has candle data available (basic prerequisite).
+    Time-based entry restriction is handled separately in detect_opportunity().
     """
-    cfg        = WATCH_ASSETS.get(asset, {})
-    asset_type = cfg.get("asset_type", "equity_etf")
+    cfg        = WATCH_ASSETS.get(asset, {})\
 
-    if asset_type == "crypto":
+    if cfg.get("asset_type") == "crypto":
         return True
 
-    # Equity: open as long as we have candle data to base signals on
-    from src.data import database as DB
     last_ts = DB.get_last_1d_ts(asset)
     return bool(last_ts and last_ts > 0)
 
 
+def _in_entry_time_window() -> bool:
+    """
+    Returns True if current ET time is within the early entry window
+    (ENTRY_HOUR_START to ENTRY_HOUR_END).
+
+    Rationale: Polymarket crypto markets open at ~16:01 ET and resolve at
+    noon ET next day. At 4:30 AM ET the market has been open ~12 hours but
+    the crowd hasn't yet priced the full day's direction — this is when
+    our technical signals have the most edge.
+
+    For equity (4PM resolution), this window coincides with pre-market
+    hours when the exchange hasn't opened yet, so Polymarket is even
+    less efficiently priced.
+    """
+    now  = datetime.now(ET)
+    h, m = now.hour, now.minute
+    start_h, start_m = ENTRY_HOUR_START
+    end_h,   end_m   = ENTRY_HOUR_END
+
+    now_mins   = h * 60 + m
+    start_mins = start_h * 60 + start_m
+    end_mins   = end_h   * 60 + end_m
+
+    return start_mins <= now_mins <= end_mins
+
+
 # ── Opportunity detection ──────────────────────────────────────────────────
 
-def detect_opportunity(asset: str, mhs: dict, dbs: dict,
-                        pip_final: float, poly_prices: dict) -> Optional[dict]:
+def detect_opportunity(
+    asset: str,
+    mhs: dict,
+    dbs: dict,
+    pip_final: float,
+    poly_prices: dict,
+    directional: dict,
+    macro: MacroData,
+) -> Optional[dict]:
     """
-    Compare our PIP against the current Polymarket price.
-    Return a trade signal dict if the edge exceeds EDGE_MIN, else None.
+    Determine if there is a tradeable opportunity using the DirectionalPredictor.
 
-    Mispricing logic:
-      We believe P(BTC up) = 0.65
-      Market prices YES at 0.52
-      Edge = 0.65 - 0.52 = 0.13 > EDGE_MIN (0.08) → buy YES
+    Entry requires ALL of:
+      1. DirectionalScore magnitude >= DIRECTIONAL_MIN (conviction threshold)
+      2. Direction is UP or DOWN (not NEUTRAL)
+      3. VIX below panic threshold
+      4. Market price not already reflecting the move (YES <= POLY_PRICE_MAX)
+      5. Current time within early entry window (4:30–9:00 AM ET)
+      6. Candle data available for this asset
+      7. Edge (PIP vs market price) >= EDGE_MIN after LLM adjustment
 
-    Additional filters:
-      - MHS must exceed the threshold for the market's resolution
-      - Signal must not be blocked (VIX too high)
-      - Daily trend must not contradict the entry direction
-      - Entry window must be open for this asset type
+    MHS is no longer a hard gate — it's still computed and shown in the UI
+    but does not block entry. The DirectionalScore replaces it as the gate.
     """
-    if mhs.get("blocked"):
-        return None
+    # 1. Candle data prerequisite
     if not in_entry_window(asset):
         return None
 
-    cfg     = WATCH_ASSETS.get(asset, {})
-    mhs_min = MHS_MIN_WEEKLY if cfg.get("resolution") == "weekly" else MHS_MIN_DAILY
-    if mhs["score"] < mhs_min:
+    # 2. Already traded this asset in the current resolution window?
+    #    lookback = 24h - hours_remaining_to_resolution
+    #    Prevents re-entering a market already traded in the same prediction window.
+    cfg_asset     = WATCH_ASSETS.get(asset, {})
+    resolves_hour = cfg_asset.get("resolves_hour", 12)
+    resolves_min  = cfg_asset.get("resolves_minute", 0)
+    now_et        = datetime.now(ET)
+    from datetime import timedelta as _td
+    resolve_dt    = now_et.replace(
+        hour=resolves_hour, minute=resolves_min, second=0, microsecond=0
+    )
+    if resolve_dt <= now_et:          # already resolved today — use tomorrow's window
+        resolve_dt += _td(days=1)
+    hours_remaining = (resolve_dt - now_et).total_seconds() / 3600
+    lookback_hours  = max(1.0, 24.0 - hours_remaining)
+    if DB.was_traded_recently(asset, lookback_hours):
+        return None   # already traded this asset in the current window
+
+    # 3. DirectionalScore conviction
+    d_score = directional.get("score", 0)
+    d_dir   = directional.get("direction", "NEUTRAL")
+    if abs(d_score) < DIRECTIONAL_MIN:
+        return None
+    if d_dir == "NEUTRAL":
+        return None
+
+    # 3. VIX panic block — kept even in new system
+    if mhs.get("blocked"):
+        return None
+
+    # 4. Time window — only enter in early morning window
+    if not _in_entry_time_window():
         return None
 
     yes_price = poly_prices.get("yes")
@@ -85,33 +147,48 @@ def detect_opportunity(asset: str, mhs: dict, dbs: dict,
     if yes_price is None:
         return None
 
-    direction = dbs["direction"]
+    cfg = WATCH_ASSETS.get(asset, {})
 
-    if direction == "LONG" and dbs["score"] >= DBS_LONG_THRESH:
+    # 5. Long (UP) entry
+    if d_dir == "UP":
+        # Market must not have already priced the move
+        if yes_price > POLY_PRICE_MAX:
+            return None
         edge = pip_final - yes_price
         if edge >= EDGE_MIN:
             return {
-                "side":      "YES",
-                "edge":      round(edge, 3),
-                "pip":       pip_final,
-                "mkt_price": yes_price,
-                "token_id":  cfg.get("token_yes", ""),
-                "mhs":       mhs["score"],
-                "dbs":       dbs["score"],
+                "side":             "YES",
+                "edge":             round(edge, 3),
+                "pip":              pip_final,
+                "mkt_price":        yes_price,
+                "token_id":         cfg.get("token_yes", ""),
+                "mhs":              mhs.get("score", 0),
+                "dbs":              dbs.get("score", 0),
+                "directional":      d_score,
+                "conviction":       directional.get("conviction", "LOW"),
             }
 
-    elif direction == "SHORT" and dbs["score"] <= DBS_SHORT_THRESH:
+    # 6. Short (DOWN) entry
+    elif d_dir == "DOWN":
+        if no_price is None:
+            return None
+        # For NO trades: market prices DOWN move → NO price is high
+        # We check no_price <= POLY_PRICE_MAX (equivalent check on NO side)
+        if no_price > POLY_PRICE_MAX:
+            return None
         prob_no = 1.0 - pip_final
         edge    = prob_no - no_price
         if edge >= EDGE_MIN:
             return {
-                "side":      "NO",
-                "edge":      round(edge, 3),
-                "pip":       round(prob_no, 3),
-                "mkt_price": no_price,
-                "token_id":  cfg.get("token_no", ""),
-                "mhs":       mhs["score"],
-                "dbs":       dbs["score"],
+                "side":             "NO",
+                "edge":             round(edge, 3),
+                "pip":              round(prob_no, 3),
+                "mkt_price":        no_price,
+                "token_id":         cfg.get("token_no", ""),
+                "mhs":              mhs.get("score", 0),
+                "dbs":              dbs.get("score", 0),
+                "directional":      d_score,
+                "conviction":       directional.get("conviction", "LOW"),
             }
 
     return None
@@ -139,15 +216,15 @@ def open_position(asset: str, opp: dict, capital: float,
     if poly_client and "REEMPLAZAR" not in opp.get("token_id", "REEMPLAZAR"):
         order_id = CLOB.buy(poly_client, opp["token_id"], usdc, price)
         if order_id is None:
-            return False  # order failed — don't record the position
+            return False
     else:
         order_id = "paper"
 
     pos = PolyPosition(
-        asset=asset, side=opp["side"], token_id=opp.get("token_id",""),
+        asset=asset, side=opp["side"], token_id=opp.get("token_id", ""),
         shares=shares, entry_price=price, usdc_spent=max_loss,
         entry_time=datetime.now(ET),
-        resolution=WATCH_ASSETS[asset].get("resolution","daily"),
+        resolution=WATCH_ASSETS[asset].get("resolution", "daily"),
         entry_mhs=opp["mhs"], entry_dbs=opp["dbs"], entry_pip=opp["pip"],
         stop_loss=sl, take_profit=tp, order_id=order_id,
     )
@@ -203,17 +280,15 @@ def monitor_position(asset: str, pos: PolyPosition,
                       poly_client, state: dict) -> Optional[ClosedTrade]:
     """
     Check if an open position should be closed. Priority order:
-      1. Market resolved (CLOB price converged to 0.97+ or 0.03-)
+      1. Market resolved (CLOB price converged to ≥0.97 or ≤0.03)
       2. Stop-loss hit
       3. Take-profit hit
-      4. Signal reversed (MHS fell or direction flipped)
-
-    Returns the ClosedTrade if closed, None if position remains open.
+      4. Signal reversed (directional score flipped strongly)
     """
     if cur_clob is None:
         return None
 
-    # 1. Auto-resolution by CLOB convergence
+    # 1. Auto-resolution
     if cur_clob >= 0.97:
         return close_position(asset, pos, "WON",  1.0,  poly_client, state)
     if cur_clob <= 0.03:
@@ -227,12 +302,25 @@ def monitor_position(asset: str, pos: PolyPosition,
     if cur_clob >= pos.take_profit:
         return close_position(asset, pos, "TAKE_PROFIT", cur_clob, poly_client, state)
 
-    # 4. Signal reversal
-    signal_reversed = (
-        mhs_score < 50 or
-        (pos.side == "YES" and dbs_score < -0.3) or
-        (pos.side == "NO"  and dbs_score >  0.3)
-    )
+    # 4. Signal reversal — use directional score if available, else MHS/DBS
+    directional = state.get("directional_score", {}).get(asset, {})
+    d_dir = directional.get("direction", "NEUTRAL")
+
+    signal_reversed = False
+    if d_dir != "NEUTRAL":
+        # Directional predictor flipped against our position
+        if pos.side == "YES" and d_dir == "DOWN":
+            signal_reversed = True
+        elif pos.side == "NO" and d_dir == "UP":
+            signal_reversed = True
+    else:
+        # Fallback to MHS/DBS check
+        signal_reversed = (
+            mhs_score < 40 or
+            (pos.side == "YES" and dbs_score < -0.4) or
+            (pos.side == "NO"  and dbs_score >  0.4)
+        )
+
     if signal_reversed:
         return close_position(asset, pos, "SIGNAL_REVERSED", cur_clob,
                                poly_client, state)
