@@ -54,37 +54,45 @@ def in_entry_window(asset: str) -> bool:
 
 def _in_entry_time_window(asset: str) -> bool:
     """
-    Returns True if current ET time is within the configured entry window
-    for this asset's Polymarket daily market.
+    Returns True if current ET time is within the configured entry window.
 
-    Window logic:
-      market_ref   = resolve_dt - 24h   (when market was freshest, ~0.50 price)
-      window_start = market_ref + TIME_OFFSET hours
-      window_end   = window_start + TIME_OFFSET_WINDOW hours
+    Window anchored on resolve_dt (not market open):
+      window_start = resolve_dt - (24h - TIME_OFFSET)
+      window_end   = window_start + TIME_OFFSET_WINDOW
 
-    Example with defaults (OFFSET=6, WINDOW=10):
-      Crypto (noon resolution):  yesterday 18:00 → today 04:00 ET
-      Equity (4PM resolution):   yesterday 22:00 → today 08:00 ET
+    This naturally handles weekends for equity:
+      - Monday 4PM resolution → window_start = Sunday 10PM (with OFFSET=6)
+      - Machine starts 4:30 AM Monday → already inside window ✓
+      - No special weekend logic needed — the math handles it automatically.
 
-    The comparison is done in absolute datetime (not mod 24) so crossing
-    midnight is handled correctly — 05:00 today IS after 22:00 yesterday.
+    For crypto (daily, 24/7):
+      - Saturday noon resolution → window_start = Friday 6PM (with OFFSET=6)
+      - window_end = Saturday 10AM (with WINDOW=16)
+
+    Constraint: TIME_OFFSET + TIME_OFFSET_WINDOW must be < 24 (validated at startup).
     """
     from datetime import timedelta
     cfg           = WATCH_ASSETS.get(asset, {})
     resolves_hour = cfg.get("resolves_hour", 12)
     resolves_min  = cfg.get("resolves_minute", 0)
+    asset_type    = cfg.get("asset_type", "equity_etf")
 
-    now        = datetime.now(ET)
+    now = datetime.now(ET)
+
+    # Find the next resolution datetime for this asset
     resolve_dt = now.replace(
         hour=resolves_hour, minute=resolves_min, second=0, microsecond=0
     )
-    # If today's resolution already passed, next one is tomorrow
     if resolve_dt <= now:
         resolve_dt += timedelta(days=1)
 
-    # Market reference = 24h before resolution (when price was fresh ~0.50)
-    market_ref   = resolve_dt - timedelta(hours=24)
-    window_start = market_ref + timedelta(hours=TIME_OFFSET)
+    # For equity: skip to next weekday resolution (Mon-Fri only)
+    if asset_type == "equity_etf":
+        while resolve_dt.weekday() >= 5:   # 5=Sat, 6=Sun
+            resolve_dt += timedelta(days=1)
+
+    # Window anchored on resolution time
+    window_start = resolve_dt - timedelta(hours=(24 - TIME_OFFSET))
     window_end   = window_start + timedelta(hours=TIME_OFFSET_WINDOW)
 
     return window_start <= now <= window_end
