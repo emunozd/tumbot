@@ -26,7 +26,8 @@ logging.getLogger("tumbot.telegram").setLevel(logging.DEBUG)
 
 from src.config import (
     WATCH_ASSETS, FRED_KEY, POLY_PK, POLY_FUNDER, CAPITAL_INITIAL,
-    POLY_HOST, POLY_CHAIN, ET, LLM_BACKEND, LLM_MODEL
+    POLY_HOST, POLY_CHAIN, ET, LLM_BACKEND, LLM_MODEL,
+    TIME_OFFSET, TIME_OFFSET_WINDOW,
 )
 from src.data import database as DB
 from src.data.market_data import (
@@ -66,6 +67,19 @@ from rich.panel import Panel
 if not FRED_KEY:
     print("\n⚠  FRED_API_KEY is required. Register free at fred.stlouisfed.org\n")
     sys.exit(1)
+
+# ── Validate TIME_OFFSET + TIME_OFFSET_WINDOW ──────────────────────────────
+_DEFAULT_OFFSET = 6
+_DEFAULT_WINDOW = 10
+if TIME_OFFSET + TIME_OFFSET_WINDOW >= 24:
+    console.print(
+        f"[red]⚠ TIME_OFFSET ({TIME_OFFSET}) + TIME_OFFSET_WINDOW ({TIME_OFFSET_WINDOW}) "
+        f"= {TIME_OFFSET + TIME_OFFSET_WINDOW} >= 24 — valores inválidos.[/]\n"
+        f"[yellow]  Usando valores por defecto: OFFSET={_DEFAULT_OFFSET}h, WINDOW={_DEFAULT_WINDOW}h[/]"
+    )
+    import src.config as _cfg
+    _cfg.TIME_OFFSET        = _DEFAULT_OFFSET
+    _cfg.TIME_OFFSET_WINDOW = _DEFAULT_WINDOW
 
 try:
     import yfinance  # noqa

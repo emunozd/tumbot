@@ -24,7 +24,7 @@ from zoneinfo import ZoneInfo
 from src.config import (
     MHS_MIN_DAILY, MHS_MIN_WEEKLY, DBS_LONG_THRESH, DBS_SHORT_THRESH,
     EDGE_MIN, ENTRY_WINDOW_START, ENTRY_WINDOW_END, WATCH_ASSETS, ET,
-    DIRECTIONAL_MIN, POLY_PRICE_MAX, ENTRY_HOUR_START, ENTRY_HOUR_END,
+    DIRECTIONAL_MIN, POLY_PRICE_MAX, TIME_OFFSET, TIME_OFFSET_WINDOW,
     VIX_BLOCK,
 )
 from src.models import PolyPosition, ClosedTrade, MacroData, SentimentData, Signal
@@ -52,30 +52,42 @@ def in_entry_window(asset: str) -> bool:
     return bool(last_ts and last_ts > 0)
 
 
-def _in_entry_time_window() -> bool:
+def _in_entry_time_window(asset: str) -> bool:
     """
-    Returns True if current ET time is within the early entry window
-    (ENTRY_HOUR_START to ENTRY_HOUR_END).
+    Returns True if current ET time is within the configured entry window
+    for this asset's Polymarket daily market.
 
-    Rationale: Polymarket crypto markets open at ~16:01 ET and resolve at
-    noon ET next day. At 4:30 AM ET the market has been open ~12 hours but
-    the crowd hasn't yet priced the full day's direction — this is when
-    our technical signals have the most edge.
+    Window logic:
+      market_ref   = resolve_dt - 24h   (when market was freshest, ~0.50 price)
+      window_start = market_ref + TIME_OFFSET hours
+      window_end   = window_start + TIME_OFFSET_WINDOW hours
 
-    For equity (4PM resolution), this window coincides with pre-market
-    hours when the exchange hasn't opened yet, so Polymarket is even
-    less efficiently priced.
+    Example with defaults (OFFSET=6, WINDOW=10):
+      Crypto (noon resolution):  yesterday 18:00 → today 04:00 ET
+      Equity (4PM resolution):   yesterday 22:00 → today 08:00 ET
+
+    The comparison is done in absolute datetime (not mod 24) so crossing
+    midnight is handled correctly — 05:00 today IS after 22:00 yesterday.
     """
-    now  = datetime.now(ET)
-    h, m = now.hour, now.minute
-    start_h, start_m = ENTRY_HOUR_START
-    end_h,   end_m   = ENTRY_HOUR_END
+    from datetime import timedelta
+    cfg           = WATCH_ASSETS.get(asset, {})
+    resolves_hour = cfg.get("resolves_hour", 12)
+    resolves_min  = cfg.get("resolves_minute", 0)
 
-    now_mins   = h * 60 + m
-    start_mins = start_h * 60 + start_m
-    end_mins   = end_h   * 60 + end_m
+    now        = datetime.now(ET)
+    resolve_dt = now.replace(
+        hour=resolves_hour, minute=resolves_min, second=0, microsecond=0
+    )
+    # If today's resolution already passed, next one is tomorrow
+    if resolve_dt <= now:
+        resolve_dt += timedelta(days=1)
 
-    return start_mins <= now_mins <= end_mins
+    # Market reference = 24h before resolution (when price was fresh ~0.50)
+    market_ref   = resolve_dt - timedelta(hours=24)
+    window_start = market_ref + timedelta(hours=TIME_OFFSET)
+    window_end   = window_start + timedelta(hours=TIME_OFFSET_WINDOW)
+
+    return window_start <= now <= window_end
 
 
 # ── Opportunity detection ──────────────────────────────────────────────────
@@ -139,7 +151,7 @@ def detect_opportunity(
         return None
 
     # 4. Time window — only enter in early morning window
-    if not _in_entry_time_window():
+    if not _in_entry_time_window(asset):
         return None
 
     yes_price = poly_prices.get("yes")

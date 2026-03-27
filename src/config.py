@@ -107,13 +107,28 @@ DIRECTIONAL_MIN = float(os.environ.get("DIRECTIONAL_MIN", "45"))
 #   already knows what we know.
 POLY_PRICE_MAX  = float(os.environ.get("POLY_PRICE_MAX", "0.65"))
 
-# ENTRY_HOUR_START / END: ET hours during which new positions can be opened.
-#   Machine starts at 4:30 AM ET. Crypto resolves at noon ET.
-#   Entering before 9 AM gives 3+ hours before resolution for crypto,
-#   and the market is least efficient (crowd hasn't fully priced the day).
-#   For equity (4PM resolution) this gives the full pre-market window.
-ENTRY_HOUR_START: Tuple[int, int] = (4,  30)   # 4:30 AM ET
-ENTRY_HOUR_END:   Tuple[int, int] = (9,  0)    # 9:00 AM ET
+# TIME_OFFSET / TIME_OFFSET_WINDOW — dynamic entry window per asset.
+#
+# Each Polymarket daily market is treated as opening 24h before its resolution time.
+# That reference point is when the price is freshest (~0.50, least priced by crowd).
+#
+#   market_ref   = resolve_dt - 24h   (e.g. crypto noon → yesterday noon)
+#   window_start = market_ref + TIME_OFFSET
+#   window_end   = market_ref + TIME_OFFSET + TIME_OFFSET_WINDOW
+#
+# Example with defaults (OFFSET=6, WINDOW=10):
+#   Crypto (resolves noon ET):   window = yesterday 18:00 → today 04:00 ET
+#   Equity (resolves 4PM ET):   window = yesterday 22:00 → today 08:00 ET
+#
+# Constraint: TIME_OFFSET + TIME_OFFSET_WINDOW must be < 24.
+# If violated at startup, defaults are used and a warning is logged.
+#
+TIME_OFFSET        = int(os.environ.get("TIME_OFFSET",        "6"))
+TIME_OFFSET_WINDOW = int(os.environ.get("TIME_OFFSET_WINDOW", "10"))
+
+# ── Legacy entry window (kept for in_entry_window() equity candle check) ───
+ENTRY_HOUR_START: Tuple[int, int] = (4,  30)
+ENTRY_HOUR_END:   Tuple[int, int] = (9,  0)
 
 # ── Risk management ────────────────────────────────────────────────────────
 STOP_LOSS_PCT   = float(os.environ.get("STOP_LOSS_PCT",   "0.35"))
