@@ -404,7 +404,7 @@ async def cmd_signals(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> Non
         )
         poly_slug  = WATCH_ASSETS[asset].get("poly_slug", "")
         market_dt  = _parse_slug_date(poly_slug)
-        market_lbl = f"  📅 {market_dt}" if market_dt != "—" else ""
+        market_lbl = f"📅 {market_dt}" if market_dt != "—" else "📅 —"
         yes_txt = f"{yes_p:.3f}" if yes_p else "—"
         no_txt  = f"{no_p:.3f}"  if no_p  else "—"
 
@@ -449,7 +449,9 @@ async def cmd_signals(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> Non
         d_signal_txt = " ⚡" if d_signal else ""
 
         lines.append(
-            f"<b>{name}</b> ({asset})  {price_txt}{market_lbl}\n"
+            f"<b>{name}</b> ({asset})\n"
+            f"  💵 {price_txt.replace('$', '')} $\n"
+            f"  {market_lbl}\n"
             f"  📊 Dir: {d_txt}/100 [{d_bar}] {d_icon} {d_dir} ({d_conv}){d_signal_txt}\n"
             f"     {d_breakdown_txt}\n"
             f"  MHS: {mhs:.0f}/100 [{mhs_bar}]  ({t_s})\n"
