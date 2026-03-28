@@ -422,19 +422,38 @@ def discover_daily_markets(watch_assets: dict) -> Dict[str, dict]:
         # Equity markets only exist Mon-Fri — Saturday/Sunday are skipped.
         # Example: Friday 6 PM ET → next_trading_day = Monday, not Saturday.
         asset_type  = cfg.get("asset_type", "equity_etf")
-        cutoff_hour = 12 if asset_type == "crypto" else 16
-        past_cutoff = now.hour >= cutoff_hour
 
         if asset_type == "crypto":
-            # Crypto trades 7 days — use calendar days, no weekend skipping
+            # Crypto trades 7 days — simple calendar logic
+            # Before noon ET: today first, tomorrow second
+            # After noon ET:  tomorrow first, today second
+            past_cutoff   = now.hour >= 12
             today_trading = now
             next_trading  = now + timedelta(days=1)
+            date_order    = [next_trading, today_trading] if past_cutoff else [today_trading, next_trading]
         else:
-            # Equity only exists Mon-Fri — skip weekends
-            today_trading = _prev_or_same_trading_day(now)
-            next_trading  = _next_trading_day(now)
-
-        date_order = [next_trading, today_trading] if past_cutoff else [today_trading, next_trading]
+            # Equity only exists Mon-Fri — find next UNRESOLVED trading day.
+            # Key: if today is weekend OR today's 4PM has already passed,
+            # the next market to trade is the next trading day (not today/yesterday).
+            cutoff_hour = 16
+            # Find current or next trading day (skip weekends)
+            if now.weekday() < 5:
+                current_td = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            else:
+                current_td = _next_trading_day(
+                    now.replace(hour=0, minute=0, second=0, microsecond=0)
+                )
+            resolve_today = current_td.replace(hour=cutoff_hour, minute=0, second=0)
+            if resolve_today > now:
+                # Today's equity market hasn't resolved yet — it's the current market
+                today_trading = current_td
+                next_trading  = _next_trading_day(current_td)
+            else:
+                # Today's equity market already resolved — move forward
+                today_trading = _next_trading_day(current_td)
+                next_trading  = _next_trading_day(today_trading)
+            # Always try today's market first for equity (it's always unresolved here)
+            date_order = [today_trading, next_trading]
 
         for dt in date_order:
             if market:
