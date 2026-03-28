@@ -471,23 +471,32 @@ async def cmd_signals(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> Non
 
 @_require_auth
 async def cmd_trades(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> None:
+    """HTML parse mode — evita problemas de escape con guiones y puntos."""
     recent = DB.load_recent_trades(limit=10)
     if not recent:
         await update.message.reply_text(
-            "📭 Aún no hay trades cerrados\\.",
-            parse_mode=ParseMode.MARKDOWN_V2,
+            "📭 Aún no hay trades cerrados.",
+            parse_mode=ParseMode.HTML,
         )
         return
-    lines = ["📋 *Últimos 10 Trades*\n"]
+    lines = ["📋 <b>Últimos 10 Trades</b>\n"]
     for t in recent:
         pnl  = t.get("pnl", 0.0)
         icon = "🟢" if pnl >= 0 else "🔴"
+        asset  = t.get("asset", "?")
+        side   = t.get("side", "?")
+        reason = t.get("reason", "?")
+        time_  = (t.get("time") or "")[:16]
+        pnl_pct = t.get("pnl_pct", 0)
+        entry  = t.get("entry_price", 0)
+        exit_  = t.get("exit_price", 0)
         lines.append(
-            f"{icon} *{_e(t.get('asset','?'))}* {t.get('side','?')} — "
-            f"{_e(_fmt_pnl(pnl))} USDC \\({t.get('pnl_pct', 0):+.1f}%\\)\n"
-            f"  {_e(t.get('reason','?'))}  ·  {_e((t.get('time') or '')[:16])}\n"
+            f"{icon} <b>{asset}</b> {side} — "
+            f"{_fmt_pnl(pnl)} USDC ({pnl_pct:+.1f}%)\n"
+            f"  📌 {reason}  ·  {time_}\n"
+            f"  Entry: {entry:.3f} → Exit: {exit_:.3f}\n"
         )
-    await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN_V2)
+    await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.HTML)
 
 
 @_require_auth
@@ -595,6 +604,7 @@ async def cmd_resume(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> None
 
 
 def _send_sync(text: str) -> None:
+    """Send a push notification. Uses HTML to avoid MarkdownV2 escape issues."""
     if not HAS_TG or _app is None:
         return
     chat_id = _get_owner()
@@ -604,7 +614,7 @@ def _send_sync(text: str) -> None:
         import asyncio
         try:
             asyncio.run(_app.bot.send_message(
-                chat_id=chat_id, text=text, parse_mode=ParseMode.MARKDOWN_V2
+                chat_id=chat_id, text=text, parse_mode=ParseMode.HTML
             ))
         except Exception as exc:
             log.warning(f"Telegram push failed: {exc}")
@@ -612,41 +622,46 @@ def _send_sync(text: str) -> None:
 
 
 def alert_position_opened(asset, side, shares, entry, usdc, sl, tp, mhs, dbs, pip):
-    name = _e(WATCH_ASSETS.get(asset, {}).get("name", asset))
+    name = WATCH_ASSETS.get(asset, {}).get("name", asset)
+    icon = "🟢" if side == "YES" else "🔴"
     _send_sync(
-        f"🚀 *Posición Abierta*\n\n"
-        f"  {'🟢' if side=='YES' else '🔴'} *{name}* \\({_e(asset)}\\) — {side}\n"
-        f"  {shares:.2f} shares \\@ ${_e(f'{entry:.3f}')}\n"
-        f"  Invertido: ${_e(f'{usdc:.2f}')} USDC\n\n"
-        f"  🛑 SL: ${_e(f'{sl:.3f}')}   🎯 TP: ${_e(f'{tp:.3f}')}\n\n"
+        f"🚀 <b>Posición Abierta</b>\n\n"
+        f"  {icon} <b>{name}</b> ({asset}) — {side}\n"
+        f"  {shares:.2f} shares @ ${entry:.3f}\n"
+        f"  Invertido: ${usdc:.2f} USDC\n\n"
+        f"  🛑 SL: ${sl:.3f}   🎯 TP: ${tp:.3f}\n\n"
         f"  MHS:{mhs:.0f}  DBS:{dbs:+.2f}  PIP:{pip:.3f}"
     )
 
+
 def alert_position_closed(asset, side, reason, pnl, pnl_pct, entry, exit_p):
-    name = _e(WATCH_ASSETS.get(asset, {}).get("name", asset))
+    name = WATCH_ASSETS.get(asset, {}).get("name", asset)
+    icon = "🏆" if pnl >= 0 else "💸"
     _send_sync(
-        f"{'🏆' if pnl >= 0 else '💸'} *Posición Cerrada* — {_e(reason)}\n\n"
-        f"  *{name}* \\({_e(asset)}\\) {side}\n"
-        f"  ${_e(f'{entry:.3f}')} → ${_e(f'{exit_p:.3f}')}\n"
-        f"  PnL: {_e(_fmt_pnl(pnl))} USDC \\({pnl_pct:+.1f}%\\)"
+        f"{icon} <b>Posición Cerrada</b> — {reason}\n\n"
+        f"  <b>{name}</b> ({asset}) {side}\n"
+        f"  ${entry:.3f} → ${exit_p:.3f}\n"
+        f"  PnL: {_fmt_pnl(pnl)} USDC ({pnl_pct:+.1f}%)"
     )
+
 
 def alert_stop_loss(asset, side, trigger, pnl):
-    name = _e(WATCH_ASSETS.get(asset, {}).get("name", asset))
+    name = WATCH_ASSETS.get(asset, {}).get("name", asset)
     _send_sync(
-        f"🛑 *Stop\\-Loss Ejecutado*\n\n"
-        f"  *{name}* \\({_e(asset)}\\) {side}\n"
-        f"  Precio: ${_e(f'{trigger:.3f}')}\n"
-        f"  Pérdida: {_e(_fmt_pnl(pnl))} USDC"
+        f"🛑 <b>Stop-Loss Ejecutado</b>\n\n"
+        f"  <b>{name}</b> ({asset}) {side}\n"
+        f"  Precio: ${trigger:.3f}\n"
+        f"  Pérdida: {_fmt_pnl(pnl)} USDC"
     )
 
+
 def alert_take_profit(asset, side, trigger, pnl):
-    name = _e(WATCH_ASSETS.get(asset, {}).get("name", asset))
+    name = WATCH_ASSETS.get(asset, {}).get("name", asset)
     _send_sync(
-        f"🎯 *Take\\-Profit Alcanzado\\!*\n\n"
-        f"  *{name}* \\({_e(asset)}\\) {side}\n"
-        f"  Precio: ${_e(f'{trigger:.3f}')}\n"
-        f"  Ganancia: {_e(_fmt_pnl(pnl))} USDC"
+        f"🎯 <b>Take-Profit Alcanzado!</b>\n\n"
+        f"  <b>{name}</b> ({asset}) {side}\n"
+        f"  Precio: ${trigger:.3f}\n"
+        f"  Ganancia: {_fmt_pnl(pnl)} USDC"
     )
 
 def is_paused() -> bool:

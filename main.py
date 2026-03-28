@@ -328,6 +328,21 @@ def do_run_signals():
                 if trade:
                     with lock:
                         state["last_signal"] = datetime.now(ET).strftime("%H:%M:%S ET")
+                    # Send appropriate alert based on close reason
+                    if trade.reason == "STOP_LOSS":
+                        tg_bot.alert_stop_loss(
+                            asset, trade.side, trade.exit_price, trade.pnl
+                        )
+                    elif trade.reason == "TAKE_PROFIT":
+                        tg_bot.alert_take_profit(
+                            asset, trade.side, trade.exit_price, trade.pnl
+                        )
+                    else:
+                        tg_bot.alert_position_closed(
+                            asset, trade.side, trade.reason,
+                            trade.pnl, trade.pnl_pct,
+                            trade.entry_price, trade.exit_price,
+                        )
                     continue
 
             # Open new position
@@ -339,6 +354,14 @@ def do_run_signals():
                 if opened:
                     with lock:
                         state["last_signal"] = datetime.now(ET).strftime("%H:%M:%S ET")
+                    pos_new = state["positions"].get(asset)
+                    if pos_new:
+                        tg_bot.alert_position_opened(
+                            asset, pos_new.side, pos_new.shares,
+                            pos_new.entry_price, pos_new.usdc_spent,
+                            pos_new.stop_loss, pos_new.take_profit,
+                            opp["mhs"], opp["dbs"], opp["pip"],
+                        )
 
         # ── Bootstrap CI — recompute only when trade count changes ─────────
         # 10K iterations take ~0.1s; skip if nothing new to avoid CPU waste
