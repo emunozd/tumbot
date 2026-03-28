@@ -450,7 +450,7 @@ async def cmd_signals(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> Non
 
         lines.append(
             f"<b>{name}</b> ({asset})\n"
-            f"  💵 {price_txt.replace('$', '')} $\n"
+            f"  💵 {price_txt}\n"
             f"  {market_lbl}\n"
             f"  📊 Dir: {d_txt}/100 [{d_bar}] {d_icon} {d_dir} ({d_conv}){d_signal_txt}\n"
             f"     {d_breakdown_txt}\n"
