@@ -131,6 +131,23 @@ def _uptime() -> str:
     m, s   = divmod(rem, 60)
     return f"{h}h {m}m {s}s"
 
+def _parse_slug_date(slug: str) -> str:
+    """Extract human-readable date from a Polymarket slug. Returns '—' if not found."""
+    if not slug:
+        return "—"
+    import re as _re
+    m = _re.search(r'(\w+)-(\d+)-(\d{4})$', slug)
+    if not m:
+        return "—"
+    months = {
+        "january":"Jan","february":"Feb","march":"Mar","april":"Apr",
+        "may":"May","june":"Jun","july":"Jul","august":"Aug",
+        "september":"Sep","october":"Oct","november":"Nov","december":"Dec",
+    }
+    month = months.get(m.group(1).lower(), m.group(1)[:3].capitalize())
+    return f"{month} {m.group(2)}"
+
+
 def _positions_snap() -> dict:
     if _state is None: return {}
     with _lock: return dict(_state.get("positions", {}))
@@ -379,12 +396,15 @@ async def cmd_signals(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> Non
 
         dir_icon = {"LONG": "🟢", "SHORT": "🔴", "NEUTRAL": "⚪"}.get(dir_lbl, "⚪")
         mhs_bar  = "█" * int(mhs // 10) + "░" * (10 - int(mhs // 10))
-        price_txt = f"${price:,.2f}" if price else "—"
-        t_s       = (
+        price_txt  = f"${price:,.2f}" if price else "—"
+        t_s        = (
             f"T:{bdown.get('tech',0):.0f}"
             f" S:{bdown.get('sent',0):.0f}"
             f" M:{bdown.get('macro',0):.0f}"
         )
+        poly_slug  = WATCH_ASSETS[asset].get("poly_slug", "")
+        market_dt  = _parse_slug_date(poly_slug)
+        market_lbl = f"  📅 {market_dt}" if market_dt != "—" else ""
         yes_txt = f"{yes_p:.3f}" if yes_p else "—"
         no_txt  = f"{no_p:.3f}"  if no_p  else "—"
 
@@ -429,7 +449,7 @@ async def cmd_signals(update: "Update", ctx: "ContextTypes.DEFAULT_TYPE") -> Non
         d_signal_txt = " ⚡" if d_signal else ""
 
         lines.append(
-            f"<b>{name}</b> ({asset})  {price_txt}\n"
+            f"<b>{name}</b> ({asset})  {price_txt}{market_lbl}\n"
             f"  📊 Dir: {d_txt}/100 [{d_bar}] {d_icon} {d_dir} ({d_conv}){d_signal_txt}\n"
             f"     {d_breakdown_txt}\n"
             f"  MHS: {mhs:.0f}/100 [{mhs_bar}]  ({t_s})\n"
