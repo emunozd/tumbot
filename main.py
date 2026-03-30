@@ -354,7 +354,7 @@ def do_run_signals():
                 if opened:
                     with lock:
                         state["last_signal"] = datetime.now(ET).strftime("%H:%M:%S ET")
-                    pos_new = state["positions"].get(asset)
+                        pos_new = state["positions"].get(asset)
                     if pos_new:
                         tg_bot.alert_position_opened(
                             asset, pos_new.side, pos_new.shares,
@@ -480,8 +480,10 @@ def startup():
 # ── Main loop ──────────────────────────────────────────────────────────────
 
 def main():
-    startup()
+    # Initialize Telegram BEFORE startup so alerts fire correctly
+    # even for positions opened during the initial do_run_signals() call.
     tg_bot.init(state, lock)
+    startup()
 
     # Clock-based trigger flags
     _last_1h_hour  = -1

@@ -132,10 +132,10 @@ def init_db() -> None:
             capital_usdc  REAL, total_pnl REAL,
             log_return    REAL, trades_count INTEGER, win_rate REAL
         );
-                           
+
         CREATE TABLE IF NOT EXISTS bot_config (
             key        TEXT PRIMARY KEY,
-            value      TEXT NOT NULL,
+            value      TEXT,
             updated_at TEXT
         );
 
@@ -339,7 +339,8 @@ def was_traded_recently(asset: str, lookback_hours: float) -> bool:
     False if no recent trade found (allow entry).
     """
     import datetime as _dt
-    cutoff = (_dt.datetime.utcnow() -
+    # created_at is stored by SQLite datetime('now') = UTC. Compare in UTC.
+    cutoff = (_dt.datetime.now(_dt.timezone.utc) -
               _dt.timedelta(hours=lookback_hours)).strftime("%Y-%m-%d %H:%M:%S")
     with _conn() as conn:
         row = conn.execute(
@@ -414,17 +415,7 @@ def save_daily_snapshot(capital: float, trades_today: List[dict]) -> None:
         """, (today, capital, pnl, lr, len(trades_today), wr))
 
 
-# ── Diagnostics ────────────────────────────────────────────────────────────
-
-def db_stats() -> dict:
-    with _conn() as conn:
-        r = {}
-        for t in ["trades","candles_1h","candles_1d","candles_hist"]:
-            r[t] = conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
-    r["size_kb"] = os.path.getsize(DB_FILE) / 1024 if os.path.exists(DB_FILE) else 0
-    return r
-
-# ── Bot config (Telegram ownership) ───────────────────────────────────────
+# ── Bot config (key-value store for persistent bot settings) ──────────────
 
 def get_bot_config(key: str) -> Optional[str]:
     """Lee un valor de bot_config. Devuelve None si no existe."""
@@ -451,3 +442,14 @@ def del_bot_config(key: str) -> None:
     """Elimina una entrada de bot_config."""
     with _conn() as conn:
         conn.execute("DELETE FROM bot_config WHERE key = ?", (key,))
+
+
+# ── Diagnostics ────────────────────────────────────────────────────────────
+
+def db_stats() -> dict:
+    with _conn() as conn:
+        r = {}
+        for t in ["trades","candles_1h","candles_1d","candles_hist"]:
+            r[t] = conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+    r["size_kb"] = os.path.getsize(DB_FILE) / 1024 if os.path.exists(DB_FILE) else 0
+    return r
